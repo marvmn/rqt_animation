@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>Frame</class>
+    <widget class="QWidget" name="AnimationEditor">
+        <property name="geometry">
+            <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>520</width>
+                <height>363</height>
+            </rect>
+        </property>
+        <property name="windowTitle">
+            <string>Animation Editor</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+            <item>
+                <layout class="QVBoxLayout" name="verticalLayout">
+                    <item>
+                        <layout class="QHBoxLayout" name="filePanel">
+                            <item>
+                                <widget class="QPushButton" name="fileButton">
+                                    <property name="text">
+                                        <string>Select File...</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </item>
+                    <item>
+                        <layout class="QHBoxLayout" name="controlPanel">
+                            <item>
+                                <widget class="QPushButton" name="previousButton">
+                                    <property name="text">
+                                        <string>Previous</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="stopButton">
+                                    <property name="text">
+                                        <string>Stop</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="playButton">
+                                    <property name="text">
+                                        <string>Play</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="nextButton">
+                                    <property name="text">
+                                        <string>Next</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </item>
+                    <item>
+                        <layout class="QHBoxLayout" name="editPanel">
+                            <item>
+                                <widget class="QPushButton" name="addButton">
+                                    <property name="text">
+                                        <string>+</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="deleteButton">
+                                    <property name="text">
+                                        <string>Delete</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QDoubleSpinBox" name="timeSpinBox" />
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="trimButton">
+                                    <property name="text">
+                                        <string>Trim</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </item>
+                </layout>
+            </item>
+            <item>
+                <widget class="QSlider" name="timeSlider">
+                    <property name="mouseTracking">
+                        <bool>false</bool>
+                    </property>
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                </widget>
+            </item>
+        </layout>
+    </widget>
+    <resources />
+    <connections />
+</ui>

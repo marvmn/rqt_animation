@@ -1,0 +1,20 @@
+<library path="src">
+  <class name="MoveIt Animation Plugin" type="rqt_animation.editor.AnimationEditor" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      Animation editor for usage with MoveIt! and the expressive motion framework
+    </description>
+    <qtgui>
+      <!-- optional grouping...
+      <group>
+        <label>Group</label>
+      </group>
+      <group>
+        <label>Subgroup</label>
+      </group>
+      -->
+      <label>Animation Editor</label>
+      <icon type="theme">system-help</icon>
+      <statustip>For usage with MoveIt! and the expressive motion framework.</statustip>
+    </qtgui>
+  </class>
+</library>
