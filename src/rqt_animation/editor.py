@@ -56,7 +56,8 @@ class AnimationEditor(Plugin):
         context.add_widget(self._widget)
 
         # add custom matplotlib widget
-        self._widget.verticalLayout.insertWidget(3, MplCanvas(self))
+        self.plot = MplCanvas(self)
+        self._widget.verticalLayout.insertWidget(3, self.plot)
 
         # connect actions
         self._connect_actions()
@@ -95,14 +96,15 @@ class AnimationEditor(Plugin):
         # TODO Hier Einstellungen falls notwendig
     
     def _open_file(self, file):
-        self.animation_file = file[0]
+        self.animation_file = file
 
-        animation = Animation(self.animation_file)
+        self.animation = Animation(self.animation_file)
+        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
 
-        self._widget.fileButton.setText(self.animation_file)
+        self._widget.fileButton.setText(self.animation.name)
     
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
     def _on_fileButton_clicked(self):
         file = QFileDialog.getOpenFileName(self._widget, "Open File", '/home', 'Animation YAML Files (*.yaml)')
-        self._open_file(file)
+        self._open_file(file[0])
