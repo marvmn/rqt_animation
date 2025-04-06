@@ -3,6 +3,7 @@
 import os
 import rospy
 import rospkg
+from sensor_msgs.msg import JointState
 
 # RQT
 from qt_gui.plugin import Plugin
@@ -16,6 +17,8 @@ from rqt_animation.plot_canvas import MplCanvas
 
 # Animation stuff
 from expressive_motion_generation.animation_execution import Animation
+
+from rqt_animation.publishers import PublisherManager
 
 class AnimationEditor(Plugin):
 
@@ -100,14 +103,28 @@ class AnimationEditor(Plugin):
         # TODO Hier Einstellungen falls notwendig
     
     def _open_file(self, file):
+        """
+        Load the animation from the specified file and configure all the UI
+        elements accordingly
+        """
         self.animation_file = file
 
+        # load animation
         self.animation = Animation(self.animation_file)
+
+        # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
-        self._configure_time_slider()
         self.plot.draw_timebars(0.0)
 
-        self._widget.fileButton.setText(self.animation.name)
+        # configure time slider
+        self._configure_time_slider()
+
+        # initialize publishers
+        self.publishers = PublisherManager(self.animation.move_group)
+        self.publishers.publish_real_states = True
+
+        # load button now contains the animation name
+        self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
 
     def _configure_time_slider(self):
         
@@ -115,7 +132,16 @@ class AnimationEditor(Plugin):
         self._widget.timeSlider.setRange(0, int(self.animation.times[-1] * 1000))
     
     def _publish_planned_joint_state(self):
-        pass
+        
+        # construct joint state message
+        state = JointState()
+        
+        state.name = self.animation.joint_names
+        state.position = self.animation.trajectory_planner.get_position_at(self._widget.timeSlider.value() / 1000.0).tolist()
+        
+        # publish
+        self.publishers.publish_state(state)
+        
     
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
@@ -125,3 +151,4 @@ class AnimationEditor(Plugin):
     
     def _on_timeSlider_valueChanged(self):
         self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)
+        self._publish_planned_joint_state()
