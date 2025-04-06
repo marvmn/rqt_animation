@@ -61,7 +61,7 @@ class AnimationEditor(Plugin):
 
         # add custom matplotlib widget
         self.plot = MplCanvas(self)
-        self._widget.verticalLayout.insertWidget(3, self.plot)
+        self._widget.verticalLayout.insertWidget(4, self.plot)
 
         # connect actions
         self._connect_actions()
@@ -125,6 +125,9 @@ class AnimationEditor(Plugin):
 
         # load button now contains the animation name
         self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
+
+        # enable save option
+        self._widget.saveButton.setEnabled(True)
 
     def _configure_time_slider(self):
         

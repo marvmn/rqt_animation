@@ -8,9 +8,9 @@ import numpy as np
 class MplCanvas(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        fig.tight_layout()
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = self.fig.add_subplot(111)
+        self.fig.tight_layout()
 
         # list of vertical lines that mark the positions of keyframes
         self.timebars = None
@@ -18,7 +18,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # vertical line that indicates which position is currently selected
         self.indicator = None
 
-        super().__init__(fig)
+        super().__init__(self.fig)
     
     def load_animation(self, positions, times, beziers):
         '''
@@ -38,6 +38,10 @@ class MplCanvas(FigureCanvasQTAgg):
             self.lines.append(l)
             s = self.axes.scatter(times, positions.T[i], marker=".")
             self.scatters.append(s)
+        
+        # adjust plot size
+        self.fig.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.15)
+        
     
     def draw_timebars(self, time):
         """
