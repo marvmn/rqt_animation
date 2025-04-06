@@ -23,6 +23,7 @@ class AnimationEditor(Plugin):
         super(AnimationEditor, self).__init__(context)
 
         self.animation_file = None
+        self.animation = None
 
         self.setObjectName('AnimationEditor')
 
@@ -70,6 +71,9 @@ class AnimationEditor(Plugin):
         # file panel
         self._widget.fileButton.clicked.connect(self._on_fileButton_clicked)
 
+        # time slider
+        self._widget.timeSlider.valueChanged.connect(self._on_timeSlider_valueChanged)
+
     def shutdown_plugin(self):
         # TODO: unregister all publishers here
         return super().shutdown_plugin()
@@ -100,11 +104,24 @@ class AnimationEditor(Plugin):
 
         self.animation = Animation(self.animation_file)
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self._configure_time_slider()
+        self.plot.draw_timebars(0.0)
 
         self._widget.fileButton.setText(self.animation.name)
+
+    def _configure_time_slider(self):
+        
+        # configure range: Convert to ms because QSlider only works with integers
+        self._widget.timeSlider.setRange(0, int(self.animation.times[-1] * 1000))
+    
+    def _publish_planned_joint_state(self):
+        pass
     
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
     def _on_fileButton_clicked(self):
         file = QFileDialog.getOpenFileName(self._widget, "Open File", '/home', 'Animation YAML Files (*.yaml)')
         self._open_file(file[0])
+    
+    def _on_timeSlider_valueChanged(self):
+        self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)

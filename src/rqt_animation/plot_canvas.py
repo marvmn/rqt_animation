@@ -10,12 +10,26 @@ class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(111)
+        fig.tight_layout()
+
+        # list of vertical lines that mark the positions of keyframes
+        self.timebars = None
+
+        # vertical line that indicates which position is currently selected
+        self.indicator = None
+
         super().__init__(fig)
     
     def load_animation(self, positions, times, beziers):
         '''
         Plot animation file
         '''
+        # save information
+        self.positions = positions
+        self.times = times
+        self.beziers = beziers
+
+        # draw animation lines and points
         self.lines = []
         self.scatters = []
 
@@ -24,3 +38,21 @@ class MplCanvas(FigureCanvasQTAgg):
             self.lines.append(l)
             s = self.axes.scatter(times, positions.T[i], marker=".")
             self.scatters.append(s)
+    
+    def draw_timebars(self, time):
+        """
+        Draw vertical lines that mark the positions of keyframes and a distinct line
+        that indicates which time is currently selected
+        """
+        # first delete old lines
+        if not self.timebars is None:
+            self.timebars.remove()
+        if not self.indicator is None:
+            self.indicator.remove()
+        
+        # now draw vlines
+        self.timebars = self.axes.vlines(self.times, -4, 4, linestyles="dotted")
+        self.indicator = self.axes.vlines(time, -5, 5, linestyles='dashed')
+
+        # refresh
+        self.draw()
