@@ -10,9 +10,8 @@ import moveit_commander
 from moveit_commander.robot import RobotCommander
 
 # messages
-from moveit_msgs.msg import DisplayRobotState, DisplayTrajectory, RobotTrajectory
+from moveit_msgs.msg import DisplayRobotState
 from sensor_msgs.msg import JointState
-from trajectory_msgs.msg import JointTrajectoryPoint
 
 class PublisherManager():
 
@@ -21,16 +20,15 @@ class PublisherManager():
         Initialize publishers and MoveIt!
         """
         # initialize moveit
-        moveit_commander.roscpp_initialize(sys.argv)
-        self.robot = RobotCommander()
-        self.move_group = moveit_commander.MoveGroupCommander(group_name)
+        # moveit_commander.roscpp_initialize(sys.argv)
+        # self.robot = RobotCommander()
+        # self.move_group = moveit_commander.MoveGroupCommander(group_name)
 
         # status variable
         self.publish_real_states = False
 
         # publishers
         self.pub_fake = rospy.Publisher("/display_robot_state", DisplayRobotState, queue_size=10)
-        self.pub_trajectory = rospy.Publisher("/move_group/display_planned_path", DisplayTrajectory, queue_size=20)
         self.pub_real = rospy.Publisher("/joint_command", JointState, queue_size=10)
 
     def publish_state(self, state):
