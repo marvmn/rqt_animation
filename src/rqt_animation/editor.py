@@ -4,6 +4,7 @@ import os
 import rospy
 import rospkg
 from sensor_msgs.msg import JointState
+from rosgraph_msgs.msg import Clock
 
 # RQT
 from qt_gui.plugin import Plugin
@@ -25,10 +26,13 @@ class AnimationEditor(Plugin):
     def __init__(self, context):
         super(AnimationEditor, self).__init__(context)
 
+        # initialize member variables
         self.animation_file = None
         self.animation = None
         self._playing = False
+        self._last_time = -1.0
 
+        # set name
         self.setObjectName('AnimationEditor')
 
         # process standalone plugin command line args
@@ -47,7 +51,6 @@ class AnimationEditor(Plugin):
 
         # load UI file
         ui_file = os.path.join(rospkg.RosPack().get_path('rqt_animation'), 'resources', 'animation_plugin.ui')
-
         self._widget.setObjectName('AnimationEditorUI')
 
         # add widgets from file to this widget
@@ -66,6 +69,7 @@ class AnimationEditor(Plugin):
 
         # connect actions
         self._connect_actions()
+        self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
 
     def _connect_actions(self):
         '''
@@ -82,7 +86,7 @@ class AnimationEditor(Plugin):
         self._widget.publishCheckBox.stateChanged.connect(self._on_publish_checkBox_changed)
 
     def shutdown_plugin(self):
-        # TODO: unregister all publishers here
+        self.publishers.shutdown()
         return super().shutdown_plugin()
     
     def save_settings(self, plugin_settings, instance_settings):
@@ -172,3 +176,38 @@ class AnimationEditor(Plugin):
         self._widget.playButton.setText("Pause")
         self._widget.stopButton.setEnabled(True)
         self.publishers.play_from(self._widget.timeSlider.value() / 1000.0)
+    
+    def _on_stopButton_clicked(self):
+        """
+        Stop the animation
+        """
+        self._playing = False
+        self._last_time = -1.0
+        self._widget.playButton.setText("Play")
+        self._widget.stopButton.setEnabled(False)
+
+
+    # ---------------------------------- ROS CALLBACK -----------------------------------
+
+    def _on_clock_tick(self, clock: Clock):
+        '''
+        If playing the animation on real states, update time slider
+        and send joint states
+        '''
+        if self._playing and self._widget.publishCheckBox.checkState():
+
+            # check if animation has already been initialized
+            if self._last_time < 0:
+                return
+
+            current_time = clock.clock.secs + clock.clock.nsecs / 1000000.0
+            time_diff = current_time - self._last_time
+
+            # check if end was reached
+            if self._widget.timeSlider.getMaximum() > self._widget.timeSlider.value() + time_diff:
+                self._on_stopButton_clicked()
+            
+            # otherwise publish current joint state
+            else:
+                current_time += time_diff
+                self._widget.timeSlider.setValue(current_time)

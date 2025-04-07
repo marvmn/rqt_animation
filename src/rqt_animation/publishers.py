@@ -40,6 +40,10 @@ class PublisherManager():
         display.state.joint_state = state
         self.pub_fake.publish(display)
     
+    def shutdown(self):
+        self.pub_fake.unregister()
+        self.pub_real.unregister()
+    
     def play_from(self, time):
         """
         Play the animation from the specified time until the end
