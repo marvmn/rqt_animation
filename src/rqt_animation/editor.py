@@ -93,6 +93,10 @@ class AnimationEditor(Plugin):
         self._widget.nextButton.clicked.connect(self._on_nextButton_clicked)
         self._widget.previousButton.clicked.connect(self._on_previousButton_clicked)
 
+        # last and first buttons
+        self._widget.firstButton.clicked.connect(self._on_firstButton_clicked)
+        self._widget.lastButton.clicked.connect(self._on_lastButton_clicked)
+
     def shutdown_plugin(self):
         self.publishers.shutdown()
         return super().shutdown_plugin()
@@ -183,7 +187,6 @@ class AnimationEditor(Plugin):
         self._playing = True
         self._widget.playButton.setEnabled(False)
         self._widget.stopButton.setEnabled(True)
-        self.publishers.play_from(self._widget.timeSlider.value() / 1000.0, self.animation)
     
     def _on_stopButton_clicked(self):
         """
@@ -219,6 +222,18 @@ class AnimationEditor(Plugin):
             if round(time, 3) < self._widget.timeSlider.value() / 1000.0:
                 self._widget.timeSlider.setValue(time * 1000.0)
                 return
+    
+    def _on_lastButton_clicked(self):
+        """
+        Jump to the last keyframe
+        """
+        self._widget.timeSlider.setValue(self.animation.times[-1] * 1000.0)
+    
+    def _on_firstButton_clicked(self):
+        """
+        Jump to the first keyframe
+        """
+        self._widget.timeSlider.setValue(self.animation.times[0] * 1000.0)
 
 
     # ---------------------------------- ROS CALLBACK -----------------------------------

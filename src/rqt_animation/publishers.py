@@ -48,30 +48,3 @@ class PublisherManager():
     def shutdown(self):
         self.pub_fake.unregister()
         self.pub_real.unregister()
-    
-    def play_from(self, time: float, animation: Animation):
-        """
-        Play the animation from the specified time until the end
-        """
-        # if not self.publish_real_states:
-
-        #     # create displaytrajectory msg
-        #     display_trajectory = DisplayTrajectory()
-        #     display_trajectory.trajectory_start = self.robot.get_current_state()
-        #     display_trajectory.model_id = "panda"
-
-        #     fake_trajectory = RobotTrajectory()
-        #     fake_trajectory.joint_trajectory.header.frame_id = animation.frame_id
-        #     fake_trajectory.joint_trajectory.joint_names = self.robot.get_active_joint_names()
-
-        #     # add points
-        #     for i in range(len(animation.positions)):
-
-        #         point = JointTrajectoryPoint()
-        #         point.positions = animation.positions[i]
-        #         point.time_from_start.from_sec(animation.times[i])
-        #         fake_trajectory.joint_trajectory.points.append(point)
-
-        #     display_trajectory.trajectory.append(fake_trajectory)
-
-        #     self.pub_trajectory.publish(display_trajectory)
