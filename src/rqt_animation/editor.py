@@ -27,6 +27,7 @@ class AnimationEditor(Plugin):
 
         self.animation_file = None
         self.animation = None
+        self._playing = False
 
         self.setObjectName('AnimationEditor')
 
@@ -76,6 +77,9 @@ class AnimationEditor(Plugin):
 
         # time slider
         self._widget.timeSlider.valueChanged.connect(self._on_timeSlider_valueChanged)
+
+        # state changed
+        self._widget.publishCheckBox.stateChanged.connect(self._on_publish_checkBox_changed)
 
     def shutdown_plugin(self):
         # TODO: unregister all publishers here
@@ -155,3 +159,16 @@ class AnimationEditor(Plugin):
     def _on_timeSlider_valueChanged(self):
         self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)
         self._publish_planned_joint_state()
+    
+    def _on_publish_checkBox_changed(self):
+        self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
+
+    def _on_playButton_clicked(self):
+        """
+        Play the animation from the selected time until the end, either as 
+        DisplayTrajectory or on the real robot depending on the setting
+        """
+        self._playing = True
+        self._widget.playButton.setText("Pause")
+        self._widget.stopButton.setEnabled(True)
+        self.publishers.play_from(self._widget.timeSlider.value() / 1000.0)

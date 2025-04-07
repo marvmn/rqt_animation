@@ -37,7 +37,7 @@ class PublisherManager():
         if self.publish_real_states:
             self.pub_real.publish(state)
         # else:
-        
+
         # create a fake trajectory that contains the single state needed
         display_trajectory = DisplayTrajectory()
         display_trajectory.trajectory_start = self.robot.get_current_state()
@@ -54,3 +54,9 @@ class PublisherManager():
 
         # publish!
         self.pub_fake.publish(display_trajectory)
+    
+    def play_from(self, time):
+        """
+        Play the animation from the specified time until the end
+        """
+        pass
