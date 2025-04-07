@@ -85,6 +85,14 @@ class AnimationEditor(Plugin):
         # state changed
         self._widget.publishCheckBox.stateChanged.connect(self._on_publish_checkBox_changed)
 
+        # play and stop buttons
+        self._widget.playButton.clicked.connect(self._on_playButton_clicked)
+        self._widget.stopButton.clicked.connect(self._on_stopButton_clicked)
+
+        # next and previous buttons
+        self._widget.nextButton.clicked.connect(self._on_nextButton_clicked)
+        self._widget.previousButton.clicked.connect(self._on_previousButton_clicked)
+
     def shutdown_plugin(self):
         self.publishers.shutdown()
         return super().shutdown_plugin()
@@ -129,7 +137,7 @@ class AnimationEditor(Plugin):
 
         # initialize publishers
         self.publishers = PublisherManager(self.animation.move_group)
-        self.publishers.publish_real_states = True
+        self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
 
         # load button now contains the animation name
         self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
@@ -173,9 +181,9 @@ class AnimationEditor(Plugin):
         DisplayTrajectory or on the real robot depending on the setting
         """
         self._playing = True
-        self._widget.playButton.setText("Pause")
+        self._widget.playButton.setEnabled(False)
         self._widget.stopButton.setEnabled(True)
-        self.publishers.play_from(self._widget.timeSlider.value() / 1000.0)
+        self.publishers.play_from(self._widget.timeSlider.value() / 1000.0, self.animation)
     
     def _on_stopButton_clicked(self):
         """
@@ -183,8 +191,34 @@ class AnimationEditor(Plugin):
         """
         self._playing = False
         self._last_time = -1.0
-        self._widget.playButton.setText("Play")
+        self._widget.playButton.setEnabled(True)
         self._widget.stopButton.setEnabled(False)
+    
+    def _on_nextButton_clicked(self):
+        """
+        Search next keyframe and set time slider to it's time
+        """
+        for time in self.animation.times:
+
+            # round time to 3 digits after comma to avoid rounding errors
+            # since the time slider works with millisecond integers, a
+            # maximum of 3 digits makes sense here.
+            if round(time, 3) > self._widget.timeSlider.value() / 1000.0:
+                self._widget.timeSlider.setValue(time * 1000.0)
+                return
+    
+    def _on_previousButton_clicked(self):
+        """
+        Search previous keyframe and set time slider to it's time
+        """
+        for time in list(reversed(self.animation.times)):
+
+            # round time to 3 digits after comma to avoid rounding errors
+            # since the time slider works with millisecond integers, a
+            # maximum of 3 digits makes sense here.
+            if round(time, 3) < self._widget.timeSlider.value() / 1000.0:
+                self._widget.timeSlider.setValue(time * 1000.0)
+                return
 
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
@@ -194,20 +228,27 @@ class AnimationEditor(Plugin):
         If playing the animation on real states, update time slider
         and send joint states
         '''
-        if self._playing and self._widget.publishCheckBox.checkState():
+        if self._playing:
+
+            current_time = clock.clock.secs + (clock.clock.nsecs / 1000000000.0)
 
             # check if animation has already been initialized
             if self._last_time < 0:
-                return
+                self._last_time = current_time
 
-            current_time = clock.clock.secs + clock.clock.nsecs / 1000000.0
             time_diff = current_time - self._last_time
 
             # check if end was reached
-            if self._widget.timeSlider.getMaximum() > self._widget.timeSlider.value() + time_diff:
+            if self._widget.timeSlider.maximum() <= self._widget.timeSlider.value() + (time_diff * 5000):
+                # set state to last frame
+                self._widget.timeSlider.setValue(self._widget.timeSlider.maximum())
                 self._on_stopButton_clicked()
             
             # otherwise publish current joint state
             else:
                 current_time += time_diff
-                self._widget.timeSlider.setValue(current_time)
+                self._last_time = current_time
+
+                # set value on time slider
+                # this will conveniently call the slider valueChanged signal and thus publish the joint state
+                self._widget.timeSlider.setValue(self._widget.timeSlider.value() + int(time_diff * 5000))

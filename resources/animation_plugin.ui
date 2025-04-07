@@ -73,7 +73,7 @@
           <string>Publish States</string>
          </property>
          <property name="checked">
-          <bool>true</bool>
+          <bool>false</bool>
          </property>
         </widget>
        </item>
@@ -108,6 +108,13 @@
         </spacer>
        </item>
        <item>
+        <widget class="QPushButton" name="pushButton">
+         <property name="text">
+          <string>First</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="previousButton">
          <property name="text">
           <string>Previous</string>
@@ -116,6 +123,9 @@
        </item>
        <item>
         <widget class="QPushButton" name="stopButton">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="text">
           <string>Stop</string>
          </property>
@@ -132,6 +142,13 @@
         <widget class="QPushButton" name="nextButton">
          <property name="text">
           <string>Next</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_2">
+         <property name="text">
+          <string>Last</string>
          </property>
         </widget>
        </item>
