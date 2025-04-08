@@ -29,6 +29,10 @@ class MplCanvas(FigureCanvasQTAgg):
         self.times = times
         self.beziers = beziers
 
+        # delete old plot if there is one
+        self.fig.clear(False)
+        self.axes = self.fig.add_subplot(111)
+
         # draw animation lines and points
         self.lines = []
         self.scatters = []
