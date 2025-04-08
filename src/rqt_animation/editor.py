@@ -97,6 +97,9 @@ class AnimationEditor(Plugin):
         self._widget.firstButton.clicked.connect(self._on_firstButton_clicked)
         self._widget.lastButton.clicked.connect(self._on_lastButton_clicked)
 
+        # add and delete keyframe buttons
+        self._widget.addButton.clicked.connect(self._on_addButton_clicked)
+
     def shutdown_plugin(self):
         self.publishers.shutdown()
         return super().shutdown_plugin()
@@ -234,6 +237,22 @@ class AnimationEditor(Plugin):
         Jump to the first keyframe
         """
         self._widget.timeSlider.setValue(self.animation.times[0] * 1000.0)
+    
+    def _on_addButton_clicked(self):
+        """
+        Check the current robot state and set it as keyframe for the
+        selected time
+        """
+        # get robot state
+        state = self.publishers.get_robot_state(self.animation.joint_names)
+
+        # add keyframe
+        self.animation.add_keyframe(self._widget.timeSlider.value() / 1000.0, state)
+
+        # reload plot
+        # draw plot for animation
+        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self._on_timeSlider_valueChanged()
 
 
     # ---------------------------------- ROS CALLBACK -----------------------------------

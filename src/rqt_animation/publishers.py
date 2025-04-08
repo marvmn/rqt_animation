@@ -1,5 +1,6 @@
 import copy
 import rospy
+import numpy as np
 import sys
 
 # animation framework
@@ -20,9 +21,9 @@ class PublisherManager():
         Initialize publishers and MoveIt!
         """
         # initialize moveit
-        # moveit_commander.roscpp_initialize(sys.argv)
-        # self.robot = RobotCommander()
-        # self.move_group = moveit_commander.MoveGroupCommander(group_name)
+        moveit_commander.roscpp_initialize(sys.argv)
+        self.robot = RobotCommander()
+        self.move_group = moveit_commander.MoveGroupCommander(group_name)
 
         # status variable
         self.publish_real_states = False
@@ -42,6 +43,30 @@ class PublisherManager():
         display = DisplayRobotState()
         display.state.joint_state = state
         self.pub_fake.publish(display)
+    
+    def get_robot_state(self, joint_names):
+        """
+        Returns the current robot joint state
+        """
+
+        # get robot state
+        robotstate = self.robot.get_current_state()
+
+        # initialize position array
+        joint_positions = np.zeros(len(joint_names))
+
+        # fill array with joint states in correct joint name order
+        try:
+            for i in range(len(joint_names)):
+                idx = robotstate.joint_state.name.index(joint_names[i])
+                joint_positions[i] = robotstate.joint_state.position[idx]
+        except ValueError as e:
+            print("ERROR: Mismatch between joint names!")
+            print(e)
+            return None
+            
+        # return finished array
+        return joint_positions
     
     def shutdown(self):
         self.pub_fake.unregister()
