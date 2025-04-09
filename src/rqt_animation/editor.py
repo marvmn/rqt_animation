@@ -69,7 +69,6 @@ class AnimationEditor(Plugin):
 
         # connect actions
         self._connect_actions()
-        self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
 
     def _connect_actions(self):
         '''
@@ -102,6 +101,7 @@ class AnimationEditor(Plugin):
 
     def shutdown_plugin(self):
         self.publishers.shutdown()
+        self.clock_sub.unregister()
         return super().shutdown_plugin()
     
     def save_settings(self, plugin_settings, instance_settings):
@@ -152,6 +152,9 @@ class AnimationEditor(Plugin):
         # enable save option
         self._widget.saveButton.setEnabled(True)
 
+        # subscribe to clock
+        self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
+
     def _configure_time_slider(self):
         
         # configure range: Convert to ms because QSlider only works with integers
@@ -183,7 +186,6 @@ class AnimationEditor(Plugin):
     
     def _on_timeSlider_valueChanged(self):
         self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)
-        self._publish_planned_joint_state()
     
     def _on_publish_checkBox_changed(self):
         self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
@@ -292,3 +294,6 @@ class AnimationEditor(Plugin):
                 # set value on time slider
                 # this will conveniently call the slider valueChanged signal and thus publish the joint state
                 self._widget.timeSlider.setValue(self._widget.timeSlider.value() + int(time_diff * 5000))
+        
+        # always publish robot state
+        self._publish_planned_joint_state()

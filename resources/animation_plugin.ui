@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>520</width>
-    <height>363</height>
+    <width>915</width>
+    <height>265</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,6 +22,9 @@
         <widget class="QPushButton" name="newButton">
          <property name="text">
           <string>New...</string>
+         </property>
+         <property name="flat">
+          <bool>false</bool>
          </property>
         </widget>
        </item>
@@ -169,6 +172,13 @@
      </item>
      <item>
       <layout class="QHBoxLayout" name="editPanel">
+       <item>
+        <widget class="QPushButton" name="curveButton">
+         <property name="text">
+          <string>Toggle Curve Editing</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <spacer name="horizontalSpacer_5">
          <property name="orientation">
