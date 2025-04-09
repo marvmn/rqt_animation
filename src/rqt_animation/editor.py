@@ -64,7 +64,7 @@ class AnimationEditor(Plugin):
         context.add_widget(self._widget)
 
         # add custom matplotlib widget
-        self.plot = MplCanvas(self)
+        self.plot = MplCanvas(self.update_animation_from_plot, self)
         self._widget.verticalLayout.insertWidget(4, self.plot)
 
         # connect actions
@@ -168,7 +168,13 @@ class AnimationEditor(Plugin):
         # publish
         self.publishers.publish_state(state)
         
-    
+    def update_animation_from_plot(self):
+        """
+        Called by plot widget.
+        Applies changes from the plot to the animation data.
+        """
+        self.animation._reload_trajectory()
+
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
     def _on_fileButton_clicked(self):

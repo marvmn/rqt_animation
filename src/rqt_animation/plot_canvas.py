@@ -9,10 +9,11 @@ import copy
 
 class MplCanvas(FigureCanvasQTAgg):
 
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
+    def __init__(self, update_callback, parent=None, width=5, height=4, dpi=100):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         self.fig.tight_layout()
+        self.update_callback = update_callback
 
         # default values
         self.default_color = np.array([0.1, 0.2, 0.6, 1.0])
@@ -149,6 +150,9 @@ class MplCanvas(FigureCanvasQTAgg):
             
             # redraw time bars
             self.draw_timebars(None)
+
+            # update animation data in parent widget
+            self.update_callback()
 
         # check if a point is hovered and was just released
         if not self.hovered is None and self.hovered in self.selected:
