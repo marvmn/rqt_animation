@@ -13,6 +13,10 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes = self.fig.add_subplot(111)
         self.fig.tight_layout()
 
+        # default values
+        self.default_color = np.array([0.1, 0.2, 0.6, 1.0])
+        self.default_size = 64
+
         # list of vertical lines that mark the positions of keyframes
         self.timebars = None
 
@@ -22,6 +26,9 @@ class MplCanvas(FigureCanvasQTAgg):
         # currently selected points
         self.selected = []
         self.hovered = None
+
+        # if the mouse has been held down, save the point where it was first pressed
+        self.grabbed = None
 
         # rectangle that appears when dragging the mouse to select something
         self.selection_rect = None
@@ -45,8 +52,9 @@ class MplCanvas(FigureCanvasQTAgg):
         self.lines = []
         self.scatters = []
 
-        sizes = np.ones(len(times)) * 36
-        print(sizes)
+        sizes = np.ones(len(times)) * self.default_size
+        colors = np.tile(self.default_color, (len(times), 1))
+        
 
         for i in range(len(positions.T)):
 
@@ -55,8 +63,9 @@ class MplCanvas(FigureCanvasQTAgg):
             self.lines.append(l)
 
             # draw point (and make it pickable)
-            s = self.axes.scatter(times, positions.T[i], marker=".", s=copy.deepcopy(sizes))
+            s = self.axes.scatter(times, positions.T[i], marker=".", s=copy.deepcopy(sizes), c=copy.deepcopy(colors))
             s.set_picker(True)
+            s.set_label("joint" + str(i))
             self.scatters.append(s)
         
         # adjust plot size
@@ -66,7 +75,6 @@ class MplCanvas(FigureCanvasQTAgg):
         self.mpl_connect('button_press_event', self._on_mouse_press)
         self.mpl_connect('button_release_event', self._on_mouse_release)
         self.mpl_connect('motion_notify_event', self._on_mouse_move)
-        self.mpl_connect('pick_event', self._on_point_picked)
     
     def draw_timebars(self, time):
         """
@@ -92,25 +100,85 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Called when the user presses a mouse button in the plot window
         """
-        for s in self.scatters:
-            hit, item_dict = s.contains(event)
-            if hit:
-                index = item_dict['ind'][0]
-                item = s.get_paths()[item_dict['ind'][0]]
-                print(item)
+
+        # save the point where the mouse button was clicked
+        self.grabbed = [event.xdata, event.ydata]
+        
+        # check if the mouse was hovering over a point and clicked it now
+        if not self.hovered is None:
+            
+            # select point
+            self.selected.append(self.hovered)
+
+            # make the point a little bit bigger
+            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size * 5
+
+            # show selection
+            self._update_selection()
+            
 
     def _on_mouse_release(self, event):
         """
         Called when the user releases a mouse button
         """
-        print("release")
+        
+        # if there is a selection, update times and positions values according to
+        # plot values (if they were moved while the mouse was held down)
+        if self.selected:
+
+            for (s, i) in self.selected:
+                joint_idx = int(s.get_label()[len('joint'):])
+
+                self.times[i] = s._offsets[i][0]
+                self.positions[i][joint_idx] = s._offsets[i][1]
+
+        # check if a point is hovered and was just released
+        if not self.hovered is None:
+
+            # deselect point
+            self.selected.remove(self.hovered)
+
+            # make point smaller again to default hover size
+            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size * 2
+            
+            # visualize
+            self._update_selection()
+        
+        # delete mouse grab point
+        self.grabbed = None
 
     def _on_mouse_move(self, event):
         """
         Called when the user moves their mouse
         """
 
-        # check if a point was clicked
+        # first check if something is selected and the mouse button has been pressed
+        if self.selected and not self.grabbed is None:
+
+            # something is selected and the mouse was dragged
+            # move selected points the specified amount
+            movement = np.array([event.xdata, event.ydata]) - self.grabbed
+            for (s, i) in self.selected:
+                joint_idx = int(s.get_label()[len('joint'):])
+                original_position = np.array([self.times[i], self.positions[i][joint_idx]])
+
+                # move the point from it's original position
+                new_position = original_position + movement
+                s._offsets[i] = new_position
+
+                # move lines accordingly
+                xdata = self.lines[joint_idx].get_xdata()
+                ydata = self.lines[joint_idx].get_ydata()
+                xdata[i] = new_position[0]
+                ydata[i] = new_position[1]
+                self.lines[joint_idx].set_xdata(xdata)
+                self.lines[joint_idx].set_ydata(ydata)
+                
+                # redraw figure
+                self.draw()
+
+
+        # check if a point was hovered
         for s in self.scatters:
             hit, item_dict = s.contains(event)
 
@@ -126,26 +194,38 @@ class MplCanvas(FigureCanvasQTAgg):
                 
                 # deselect old point if there was one different from the current
                 if not self.hovered is None:
-                    self.hovered[0].get_sizes()[self.hovered[1]] = 36
+                    self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
 
                 # mark as hovered and increase size of this point
                 self.hovered = (s, index)
-                sizes = s.get_sizes()
-                sizes[index] *= 2
-                s.set_sizes(sizes)
+                s.get_sizes()[index] = self.default_size * 2
 
                 # redraw canvas
                 self.draw()
+
                 return
         
         # if no point was touched, deselect and unhover
         if not self.hovered is None:
-            self.hovered[0].get_sizes()[self.hovered[1]] = 36
+            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
             self.hovered = None
             self.draw()
 
-    def _on_point_picked(self, event):
+    # ---------------- SELECTION HELPERS ----------------------
+    def _update_selection(self):
         """
-        Called when a point is picked with the mouse
+        Set colors of all points according to selection
         """
-        print("pick")
+        for s in self.scatters:
+            for i in range(len(s.get_sizes())):
+
+                # check if this point is selected
+                if (s, i) in self.selected:
+                    s.get_edgecolor()[i] = np.array([0.7, 0.7, 0.05, 1.0])
+                
+                # if not, it gets the default color
+                else:
+                    s.get_edgecolor()[i] = self.default_color
+        
+        # finally, redraw!
+        self.draw()
