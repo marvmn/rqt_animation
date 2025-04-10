@@ -1,6 +1,7 @@
 
 # ROS
 import os
+import sys
 import rospy
 import rospkg
 from sensor_msgs.msg import JointState
@@ -26,9 +27,18 @@ class AnimationEditor(Plugin):
         super(AnimationEditor, self).__init__(context)
 
         # initialize member variables
-        self.animation_file = None
+
+        # animation filename
+        # this is also used as standard directory for the file choosers
+        self.animation_file = '/home'
+
+        # animation instance
         self.animation = None
+
+        # is the animation playing?
         self._playing = False
+
+        # what was the timestamp of the last clock tick?
         self._last_time = -1.0
 
         # set name
@@ -87,6 +97,7 @@ class AnimationEditor(Plugin):
         self.openButton.triggered.connect(self._on_fileButton_clicked)
         self.saveButton.triggered.connect(self._on_saveButton_clicked)
         self.saveAsButton.triggered.connect(self._on_saveAsButton_clicked)
+        self.exitButton.triggered.connect(self._on_exitButton_clicked)
 
         # time slider
         self._widget.timeSlider.valueChanged.connect(self._on_timeSlider_valueChanged)
@@ -201,8 +212,14 @@ class AnimationEditor(Plugin):
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
     def _on_fileButton_clicked(self):
-        file = QFileDialog.getOpenFileName(self._widget, "Open File", '/home', 'Animation YAML Files (*.yaml)')
-        self._open_file(file[0])
+        """
+        Open an animation file
+        """
+        file = QFileDialog.getOpenFileName(self._widget, "Open File", self.animation_file, 'Animation YAML Files (*.yaml)')
+
+        # check if a file was chosen
+        if not file[0] == '':
+            self._open_file(file[0])
     
     def _on_saveButton_clicked(self):
         """
@@ -211,8 +228,22 @@ class AnimationEditor(Plugin):
         self.save_animation(self.animation_file)
     
     def _on_saveAsButton_clicked(self):
-        file = QFileDialog.getSaveFileName(self._widget, "Save File", '/home', 'Animation YAML Files (*.yaml)')
-        self.save_animation(file[0])
+        """
+        Save current animation as a new file and set it as the current file
+        """
+        file = QFileDialog.getSaveFileName(self._widget, "Save File", self.animation_file, 'Animation YAML Files (*.yaml)')
+
+        # check if a file was chosen
+        if not file[0] == '':
+            self.animation_file = file[0]
+            self.save_animation(file[0])
+
+    def _on_exitButton_clicked(self):
+        """
+        Terminate the program
+        """
+        self.shutdown_plugin()
+        sys.exit()
 
     def _on_timeSlider_valueChanged(self):
         self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)
