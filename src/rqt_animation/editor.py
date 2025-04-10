@@ -9,9 +9,8 @@ from rosgraph_msgs.msg import Clock
 # RQT
 from qt_gui.plugin import Plugin
 from python_qt_binding import loadUi
-from python_qt_binding.QtWidgets import QWidget
+from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog
 from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
-from python_qt_binding.QtWidgets import QFileDialog
 
 # custom widget
 from rqt_animation.plot_canvas import MplCanvas
@@ -67,6 +66,15 @@ class AnimationEditor(Plugin):
         self.plot = MplCanvas(self.update_animation_from_plot, self)
         self._widget.verticalLayout.insertWidget(4, self.plot)
 
+        # create menus
+        fileMenu = QMenu('File')
+        self.newButton = fileMenu.addAction('New...')
+        self.openButton = fileMenu.addAction('Open...')
+        self.saveButton = fileMenu.addAction('Save')
+        self.saveAsButton = fileMenu.addAction('Save as...')
+        self.exitButton = fileMenu.addAction('Exit')
+        self._widget.fileMenuButton.setMenu(fileMenu)
+
         # connect actions
         self._connect_actions()
 
@@ -75,8 +83,10 @@ class AnimationEditor(Plugin):
         Connect all buttons etc. with actions
         '''
 
-        # file panel
-        self._widget.fileButton.clicked.connect(self._on_fileButton_clicked)
+        # file menu
+        self.openButton.triggered.connect(self._on_fileButton_clicked)
+        self.saveButton.triggered.connect(self._on_saveButton_clicked)
+        self.saveAsButton.triggered.connect(self._on_saveAsButton_clicked)
 
         # time slider
         self._widget.timeSlider.valueChanged.connect(self._on_timeSlider_valueChanged)
@@ -147,10 +157,11 @@ class AnimationEditor(Plugin):
         self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
 
         # load button now contains the animation name
-        self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
+        #self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
 
         # enable save option
-        self._widget.saveButton.setEnabled(True)
+        self.saveButton.setEnabled(True)
+        self.saveAsButton.setEnabled(True)
 
         # subscribe to clock
         self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
@@ -178,12 +189,31 @@ class AnimationEditor(Plugin):
         """
         self.animation._reload_trajectory()
 
+    def save_animation(self, file_path):
+        """
+        Save the currently loaded animation in a file with the given path
+        """
+        file = open(file_path, mode='w')
+        self.animation.save_yaml(file)
+        file.close()
+
+
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
     def _on_fileButton_clicked(self):
         file = QFileDialog.getOpenFileName(self._widget, "Open File", '/home', 'Animation YAML Files (*.yaml)')
         self._open_file(file[0])
     
+    def _on_saveButton_clicked(self):
+        """
+        Save current animation in the same file as before
+        """
+        self.save_animation(self.animation_file)
+    
+    def _on_saveAsButton_clicked(self):
+        file = QFileDialog.getSaveFileName(self._widget, "Save File", '/home', 'Animation YAML Files (*.yaml)')
+        self.save_animation(file[0])
+
     def _on_timeSlider_valueChanged(self):
         self.plot.draw_timebars(self._widget.timeSlider.value() / 1000.0)
     
