@@ -9,10 +9,12 @@ import copy
 
 class MplCanvas(FigureCanvasQTAgg):
 
-    def __init__(self, update_callback, parent=None, width=5, height=4, dpi=100):
+    def __init__(self, update_callback, background, parent=None, width=10, height=4, dpi=100):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
-        self.fig.tight_layout()
+        self.fig.tight_layout(pad=0.0)
+        self.fig.set_facecolor(background)
+        self.axes.set_facecolor(background)
         self.update_callback = update_callback
 
         # default values
@@ -52,6 +54,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # delete old plot if there is one
         self.fig.clear(False)
         self.axes = self.fig.add_subplot(111)
+        self.axes.set_facecolor(self.fig.get_facecolor())
 
         # draw animation lines and points
         self.lines = []
@@ -84,6 +87,14 @@ class MplCanvas(FigureCanvasQTAgg):
         self.mpl_connect('key_release_event', self._on_key_release)
         self.mpl_connect('axes_enter_event', self.on_enter_event)
     
+    def get_bounds(self):
+        """
+        Returns the x pixel coordinates of the left and right bounds of the plot
+        """
+        left_x = self.axes.transData.transform([self.times[0], 0])[0]
+        right_x = self.axes.transData.transform([self.times[-1], 0])[0]
+        return left_x, right_x
+
     def draw_timebars(self, time):
         """
         Draw vertical lines that mark the positions of keyframes and a distinct line

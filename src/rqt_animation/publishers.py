@@ -11,7 +11,7 @@ import moveit_commander
 from moveit_commander.robot import RobotCommander
 
 # messages
-from moveit_msgs.msg import DisplayRobotState
+from moveit_msgs.msg import DisplayRobotState, ObjectColor
 from sensor_msgs.msg import JointState
 
 class PublisherManager():
@@ -31,6 +31,7 @@ class PublisherManager():
         # publishers
         self.pub_fake = rospy.Publisher("/display_robot_state", DisplayRobotState, queue_size=10)
         self.pub_real = rospy.Publisher("/joint_command", JointState, queue_size=10)
+
 
     def publish_state(self, state):
         """

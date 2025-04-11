@@ -21,6 +21,19 @@ from expressive_motion_generation.animation_execution import Animation
 
 from rqt_animation.publishers import PublisherManager
 
+class QResizableWidget(QWidget):
+
+    def __init__(self, on_resize):
+        """
+        Inits a QWidget that calls the given on_resize function when it is resized.
+        """
+        QWidget.__init__(self)
+        self._on_resize = on_resize
+
+    def resizeEvent(self, event):
+        QWidget.resizeEvent(self, event)
+        self._on_resize()
+
 class AnimationEditor(Plugin):
 
     def __init__(self, context):
@@ -56,7 +69,7 @@ class AnimationEditor(Plugin):
             print('unknowns: ', unknowns)
         
         # create QWidget
-        self._widget = QWidget()
+        self._widget = QResizableWidget(self._configure_time_slider)
 
         # load UI file
         ui_file = os.path.join(rospkg.RosPack().get_path('rqt_animation'), 'resources', 'animation_plugin.ui')
@@ -73,7 +86,8 @@ class AnimationEditor(Plugin):
         context.add_widget(self._widget)
 
         # add custom matplotlib widget
-        self.plot = MplCanvas(self.update_animation_from_plot, self)
+        color = self._widget.palette().window().color().getRgbF()
+        self.plot = MplCanvas(self.update_animation_from_plot, color, self)
         self._widget.verticalLayout.insertWidget(4, self.plot)
 
         # create menus
@@ -178,9 +192,21 @@ class AnimationEditor(Plugin):
         self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
 
     def _configure_time_slider(self):
-        
+        """
+        Sets value range, layout position and size on screen of the time slider
+        """
+
+        # if animation has not been set yet, do nothing
+        if self.animation is None:
+            return
+
         # configure range: Convert to ms because QSlider only works with integers
         self._widget.timeSlider.setRange(0, int(self.animation.times[-1] * 1000))
+
+        # configure size (margins are 9px at every side)
+        left, right = self.plot.get_bounds()
+        self._widget.timeSlider.setMaximumSize(right - left, 100)
+        self._widget.horizontalLayout.setContentsMargins(left - 9, 0, self._widget.size().width() - right - 18, 0)
     
     def _publish_planned_joint_state(self):
         
