@@ -13,8 +13,9 @@ from python_qt_binding import loadUi
 from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog
 from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
 
-# custom widget
+# custom widgets
 from rqt_animation.plot_canvas import MplCanvas
+from rqt_animation.dialog_scale import ScaleDialog
 
 # Animation stuff
 from expressive_motion_generation.animation_execution import Animation
@@ -99,6 +100,10 @@ class AnimationEditor(Plugin):
         self.exitButton = fileMenu.addAction('Exit')
         self._widget.fileMenuButton.setMenu(fileMenu)
 
+        editMenu = QMenu('Edit')
+        self.scaleButton = editMenu.addAction('Scale Animation...')
+        self._widget.editMenuButton.setMenu(editMenu)
+
         # connect actions
         self._connect_actions()
 
@@ -112,6 +117,9 @@ class AnimationEditor(Plugin):
         self.saveButton.triggered.connect(self._on_saveButton_clicked)
         self.saveAsButton.triggered.connect(self._on_saveAsButton_clicked)
         self.exitButton.triggered.connect(self._on_exitButton_clicked)
+
+        # edit menu
+        self.scaleButton.triggered.connect(self._on_scaleButton_clicked)
 
         # time slider
         self._widget.timeSlider.valueChanged.connect(self._on_timeSlider_valueChanged)
@@ -148,9 +156,10 @@ class AnimationEditor(Plugin):
     def restore_settings(self, plugin_settings, instance_settings):
         #TODO: restore config
         # usually per v = instance_settings.value(k)
+        ret = super().restore_settings(plugin_settings, instance_settings)
         if not instance_settings.value('file') is None:
             self._open_file(instance_settings.value('file'))
-        return super().restore_settings(plugin_settings, instance_settings)
+        return ret
     
     def trigger_configuration(self):
         """
@@ -349,6 +358,18 @@ class AnimationEditor(Plugin):
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
         self._on_timeSlider_valueChanged()
 
+    def _on_scaleButton_clicked(self):
+        """
+        Open scale animation dialog
+        """
+        
+        # check if animation is opened
+        if not self.animation is None:
+
+            # open dialog
+            res = ScaleDialog()
+            res.exec()
+            print(res)
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
@@ -382,5 +403,9 @@ class AnimationEditor(Plugin):
                 # this will conveniently call the slider valueChanged signal and thus publish the joint state
                 self._widget.timeSlider.setValue(self._widget.timeSlider.value() + int(time_diff * 5000))
         
+        else:
+            #
+            self._configure_time_slider()
+
         # always publish robot state
         self._publish_planned_joint_state()

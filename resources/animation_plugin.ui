@@ -38,21 +38,27 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="fileButton">
+        <widget class="QPushButton" name="editMenuButton">
          <property name="text">
-          <string>Select File...</string>
+          <string>Edit</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="saveButton">
-         <property name="enabled">
-          <bool>false</bool>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
          </property>
-         <property name="text">
-          <string>Save</string>
+         <property name="sizeType">
+          <enum>QSizePolicy::Preferred</enum>
          </property>
-        </widget>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>100</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
        </item>
        <item>
         <widget class="QCheckBox" name="publishCheckBox">
@@ -72,22 +78,6 @@
           <bool>false</bool>
          </property>
         </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeType">
-          <enum>QSizePolicy::Preferred</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>100</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
        </item>
       </layout>
      </item>

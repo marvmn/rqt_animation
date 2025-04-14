@@ -114,7 +114,7 @@ class MplCanvas(FigureCanvasQTAgg):
             self.indicator = self.axes.vlines(time, -5, 5, linestyles='dashed')
 
         # refresh
-        self.draw()
+        self.draw_idle()
     
     # ------------------- EVENT HANDLERS ---------------------
 
@@ -184,7 +184,7 @@ class MplCanvas(FigureCanvasQTAgg):
         if not self.selection_rect is None:
             self.selection_rect.remove()
             self.selection_rect = None
-            self.draw()
+            self.draw_idle()
 
     def _on_mouse_move(self, event):
         """
@@ -224,8 +224,9 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.lines[joint_idx].set_xdata(xdata)
                 self.lines[joint_idx].set_ydata(ydata)
                 
-                # redraw figure
-                self.draw()
+                
+            # redraw figure
+            self.draw_idle()
 
 
         # check if a point was hovered
@@ -252,7 +253,7 @@ class MplCanvas(FigureCanvasQTAgg):
                     s.get_sizes()[index] = self.default_size * 2
 
                     # redraw canvas
-                    self.draw()
+                    self.draw_idle()
 
                     return
         
@@ -260,7 +261,7 @@ class MplCanvas(FigureCanvasQTAgg):
         if not self.hovered is None:
             self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
             self.hovered = None
-            self.draw()
+            self.draw_idle()
 
         # if no point was touched and the mouse is grabbing, draw selection rect
         if self.hovered is None and not self.grabbed is None:
@@ -328,4 +329,4 @@ class MplCanvas(FigureCanvasQTAgg):
                     s.get_edgecolor()[i] = self.default_color
         
         # finally, redraw!
-        self.draw()
+        self.draw_idle()
