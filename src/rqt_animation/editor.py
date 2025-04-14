@@ -366,10 +366,35 @@ class AnimationEditor(Plugin):
         # check if animation is opened
         if not self.animation is None:
 
+            # get animation length
+            length = self.animation.times[-1]
+
             # open dialog
-            res = ScaleDialog()
-            res.exec()
-            print(res)
+            dialog = ScaleDialog(length)
+            result = dialog.exec()
+
+            # check result
+            if result:
+
+                # get scalar value
+                factor = dialog._widget.factorSpinBox.value()
+
+                # apply it to animation
+                self.animation.trajectory_planner.times = self.animation.times
+                self.animation.trajectory_planner.positions = self.animation.positions
+                self.animation.trajectory_planner.scale_global_speed(factor)
+
+                # redraw plot
+                self.plot.load_animation(self.animation.trajectory_planner.positions, 
+                                         self.animation.trajectory_planner.times, 
+                                         self.animation.beziers)
+                
+                # reload trajectory
+                self.animation.times = self.animation.trajectory_planner.times
+                self.animation.positions = self.animation.trajectory_planner.positions
+                self.animation._reload_trajectory()
+
+            
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
