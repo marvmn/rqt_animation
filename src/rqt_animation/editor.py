@@ -383,16 +383,18 @@ class AnimationEditor(Plugin):
                 self.animation.trajectory_planner.times = self.animation.times
                 self.animation.trajectory_planner.positions = self.animation.positions
                 self.animation.trajectory_planner.scale_global_speed(factor)
-
-                # redraw plot
-                self.plot.load_animation(self.animation.trajectory_planner.positions, 
-                                         self.animation.trajectory_planner.times, 
-                                         self.animation.beziers)
                 
                 # reload trajectory
                 self.animation.times = self.animation.trajectory_planner.times
                 self.animation.positions = self.animation.trajectory_planner.positions
                 self.animation._reload_trajectory()
+
+                # redraw plot
+                self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+                self.plot.draw_timebars(0.0)
+
+                # configure time slider
+                self._configure_time_slider()
 
             
 

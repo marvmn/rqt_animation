@@ -27,7 +27,11 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QDoubleSpinBox" name="secondsSpinBox"/>
+      <widget class="QDoubleSpinBox" name="secondsSpinBox">
+       <property name="decimals">
+        <number>3</number>
+       </property>
+      </widget>
      </item>
      <item>
       <widget class="QLabel" name="label_2">
@@ -41,7 +45,14 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_2">
      <item>
-      <widget class="QDoubleSpinBox" name="factorSpinBox"/>
+      <widget class="QDoubleSpinBox" name="factorSpinBox">
+       <property name="decimals">
+        <number>3</number>
+       </property>
+       <property name="singleStep">
+        <double>0.100000000000000</double>
+       </property>
+      </widget>
      </item>
      <item>
       <widget class="QLabel" name="label_3">
