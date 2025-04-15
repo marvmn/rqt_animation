@@ -146,6 +146,7 @@ class AnimationEditor(Plugin):
         self._widget.addButton.clicked.connect(self._on_addButton_clicked)
 
         # trim and extend
+        self._widget.trimButton.clicked.connect(self._on_trimButton_clicked)
         self._widget.extendButton.clicked.connect(self._on_extendButton_clicked)
 
     def shutdown_plugin(self):
@@ -367,6 +368,8 @@ class AnimationEditor(Plugin):
         # reload plot
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self.plot.set_xrange(0, self._animation_length)
+        self._configure_time_slider()
         self._on_timeSlider_valueChanged()
 
     def _on_scaleButton_clicked(self):
@@ -422,6 +425,13 @@ class AnimationEditor(Plugin):
             self._configure_time_slider()
             self.plot.set_xrange(0, self._animation_length)
 
+    def _on_trimButton_clicked(self):
+        """
+        Trim animation length to the last keyframe timestamp
+        """
+        self._animation_length = self.animation.times[-1]
+        self.plot.set_xrange(0, self._animation_length)
+        self._configure_time_slider()
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
