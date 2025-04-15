@@ -2,6 +2,7 @@
 # ROS
 import os
 import sys
+import numpy as np
 import rospy
 import rospkg
 from sensor_msgs.msg import JointState
@@ -10,12 +11,17 @@ from rosgraph_msgs.msg import Clock
 # RQT
 from qt_gui.plugin import Plugin
 from python_qt_binding import loadUi
-from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog, QInputDialog
+from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog, QInputDialog, QMessageBox
 from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
+
+# moveit
+import moveit_commander
+from moveit_commander.robot import RobotCommander
 
 # custom widgets
 from rqt_animation.plot_canvas import MplCanvas
 from rqt_animation.dialog_scale import ScaleDialog
+from rqt_animation.dialog_new import NewDialog
 
 # Animation stuff
 from expressive_motion_generation.animation_execution import Animation
@@ -49,6 +55,12 @@ class AnimationEditor(Plugin):
         # animation instance
         self.animation = None
 
+        # publisher manager
+        self.publishers = None
+
+        # clock subscriptor
+        self.clock_sub = None
+
         # is the animation playing?
         self._playing = False
 
@@ -57,6 +69,9 @@ class AnimationEditor(Plugin):
 
         # how long is the animation in the editor?
         self._animation_length = 0.0
+
+        # is this a new animation file that has not been saved yet?
+        self._new_file = False
 
         # set name
         self.setObjectName('AnimationEditor')
@@ -116,6 +131,7 @@ class AnimationEditor(Plugin):
         '''
 
         # file menu
+        self.newButton.triggered.connect(self._on_newButton_clicked)
         self.openButton.triggered.connect(self._on_fileButton_clicked)
         self.saveButton.triggered.connect(self._on_saveButton_clicked)
         self.saveAsButton.triggered.connect(self._on_saveAsButton_clicked)
@@ -150,8 +166,7 @@ class AnimationEditor(Plugin):
         self._widget.extendButton.clicked.connect(self._on_extendButton_clicked)
 
     def shutdown_plugin(self):
-        self.publishers.shutdown()
-        self.clock_sub.unregister()
+        self.unload_animation()
         return super().shutdown_plugin()
     
     def save_settings(self, plugin_settings, instance_settings):
@@ -176,16 +191,133 @@ class AnimationEditor(Plugin):
         
         # TODO Hier Einstellungen falls notwendig
     
+    def unload_animation(self):
+        """
+        Unloads current animation and unregisters handlers
+        """
+        self.animation = None
+
+        if not self.clock_sub is None:
+            self.clock_sub.unregister()
+            self.clock_sub = None
+
+        if not self.publishers is None:
+            self.publishers.shutdown()
+            self.publishers = None
+        
+        self.plot.unload()
+        
+        self._widget.addButton.setEnabled(False)
+        self._widget.deleteButton.setEnabled(False)
+        self._widget.trimButton.setEnabled(False)
+        self._widget.extendButton.setEnabled(False)
+        self.saveButton.setEnabled(False)
+        self.saveAsButton.setEnabled(False)
+
+    def _new_animation(self):
+        """
+        Create a new animation
+        """  
+        # load moveit robot commander
+        robot = None
+        if not self.publishers is None:
+            robot = self.publishers.robot
+        else:
+            moveit_commander.roscpp_initialize(sys.argv)
+            robot = RobotCommander()
+        
+        # open new animation dialog
+        print(robot.get_planning_frame())
+        dialog = NewDialog(robot)
+        result = dialog.exec()
+
+        # check result
+        if result:
+
+            # unload old animation
+            self.unload_animation()
+            self._new_animation = True
+
+            # get info from dialog
+            name = dialog._widget.nameEdit.text()
+            move_group = dialog._widget.moveGroupBox.currentText()
+
+            # create new animation
+            self.animation = Animation(None)
+            self.animation.name = name
+            self.animation.move_group = move_group
+            self.animation.frame_id = robot.get_planning_frame()
+            self.animation.joint_names = robot.get_active_joint_names()
+
+            # initialize editor
+            self._animation_length = 5.0
+            self.publishers = PublisherManager(self.animation.move_group)
+            self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
+
+            # add current position as first keyframe
+            # get robot state
+            state = self.publishers.get_robot_state(self.animation.joint_names)
+
+            # add keyframe
+            self.animation.times = np.array([0.0])
+            self.animation.positions = np.array([state])
+            
+            # draw plot for animation
+            self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+            self.plot.set_xrange(0.0, self._animation_length)
+            self.plot.draw_timebars(0.0)
+
+            # configure time slider
+            self._configure_time_slider()
+
+            # enable buttons
+            self._widget.addButton.setEnabled(True)
+            self._widget.deleteButton.setEnabled(True)
+            self._widget.trimButton.setEnabled(True)
+            self._widget.extendButton.setEnabled(True)
+            self.saveButton.setEnabled(True)
+            self.saveAsButton.setEnabled(True)
+
+            # subscribe to clock
+            self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
+
     def _open_file(self, file):
         """
         Load the animation from the specified file and configure all the UI
         elements accordingly
         """
+
+        # if an animation was loaded previously, remove old handlers first
+        self.unload_animation()
+
         self.animation_file = file
 
         # load animation
         self.animation = Animation(self.animation_file)
         self._animation_length = self.animation.times[-1]
+
+        # initialize publishers
+        try:
+            self.publishers = PublisherManager(self.animation.move_group)
+            self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
+        except ValueError:
+            # if the move group was not found, cancel loading this animation
+            dialog = QMessageBox(self._widget)
+            dialog.setWindowTitle('Error')
+            dialog.setText(f'Robot could not be loaded: Move Group {self.animation.move_group} was not available.')
+            dialog.setStandardButtons(QMessageBox.Retry | QMessageBox.Cancel)
+            dialog.setIcon(QMessageBox.Critical)
+            result = dialog.exec()
+
+            if result == QMessageBox.Retry:
+                self._open_file(self.animation_file)
+                return
+            else:
+                self.unload_animation()
+                return
+
+        # check if animation is suitable for currently loaded robot from MoveIt TODO
+        print(self.publishers.check_compatibility(self.animation))
 
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
@@ -194,14 +326,11 @@ class AnimationEditor(Plugin):
         # configure time slider
         self._configure_time_slider()
 
-        # initialize publishers
-        self.publishers = PublisherManager(self.animation.move_group)
-        self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
-
-        # load button now contains the animation name
-        #self._widget.fileButton.setText(self.animation.name + " (Open other file...)")
-
-        # enable save option
+        # enable buttons
+        self._widget.addButton.setEnabled(True)
+        self._widget.deleteButton.setEnabled(True)
+        self._widget.trimButton.setEnabled(True)
+        self._widget.extendButton.setEnabled(True)
         self.saveButton.setEnabled(True)
         self.saveAsButton.setEnabled(True)
 
@@ -224,7 +353,12 @@ class AnimationEditor(Plugin):
         left, right = self.plot.get_bounds()
 
         # add additional space without keyframes
-        right += (self._animation_length - self.animation.times[-1]) * ((right - left) / self.animation.times[-1])
+        if not self.animation.times[-1] == 0.0:
+            right += (self._animation_length - self.animation.times[-1]) * ((right - left) / self.animation.times[-1])
+        else:
+            # there is only one frame in the animation, set the time slider to span from left to right
+            left = 18
+            right = self._widget.size().width() - 9
 
         self._widget.timeSlider.setMaximumSize(right - left, 100)
         self._widget.horizontalLayout.setContentsMargins(left - 9, 0, self._widget.size().width() - right - 18, 0)
@@ -235,7 +369,13 @@ class AnimationEditor(Plugin):
         state = JointState()
         
         state.name = self.animation.joint_names
-        state.position = self.animation.trajectory_planner.get_position_at(self._widget.timeSlider.value() / 1000.0).tolist()
+
+        # get joint positions
+        time = self._widget.timeSlider.value() / 1000.0
+        if time >= self.animation.times[-1]:
+            state.position = self.animation.positions[-1].tolist()
+        else:
+            state.position = self.animation.trajectory_planner.get_position_at(time).tolist()
         
         # publish
         self.publishers.publish_state(state)
@@ -258,6 +398,12 @@ class AnimationEditor(Plugin):
 
     # --------------------------------- BUTTON HANDLERS ----------------------------------
 
+    def _on_newButton_clicked(self):
+        """
+        Init a new animation file and open it
+        """
+        self._new_animation()
+
     def _on_fileButton_clicked(self):
         """
         Open an animation file
@@ -272,6 +418,9 @@ class AnimationEditor(Plugin):
         """
         Save current animation in the same file as before
         """
+        if self._new_animation:
+            return self._on_saveAsButton_clicked()
+            
         self.save_animation(self.animation_file)
     
     def _on_saveAsButton_clicked(self):

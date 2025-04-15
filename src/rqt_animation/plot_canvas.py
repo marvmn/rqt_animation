@@ -17,6 +17,9 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.set_facecolor(background)
         self.update_callback = update_callback
 
+        # input event handlers
+        self.handlers = []
+
         # default values
         self.default_color = np.array([0.1, 0.2, 0.6, 1.0])
         self.default_size = 64
@@ -80,12 +83,12 @@ class MplCanvas(FigureCanvasQTAgg):
         self.fig.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.15)
 
         # connect events
-        self.mpl_connect('button_press_event', self._on_mouse_press)
-        self.mpl_connect('button_release_event', self._on_mouse_release)
-        self.mpl_connect('motion_notify_event', self._on_mouse_move)
-        self.mpl_connect('key_press_event', self._on_key_press)
-        self.mpl_connect('key_release_event', self._on_key_release)
-        self.mpl_connect('axes_enter_event', self.on_enter_event)
+        self.handlers.append(self.mpl_connect('button_press_event', self._on_mouse_press))
+        self.handlers.append(self.mpl_connect('button_release_event', self._on_mouse_release))
+        self.handlers.append(self.mpl_connect('motion_notify_event', self._on_mouse_move))
+        self.handlers.append(self.mpl_connect('key_press_event', self._on_key_press))
+        self.handlers.append(self.mpl_connect('key_release_event', self._on_key_release))
+        self.handlers.append(self.mpl_connect('axes_enter_event', self.on_enter_event))
     
     def get_bounds(self):
         """
@@ -120,6 +123,23 @@ class MplCanvas(FigureCanvasQTAgg):
         # refresh
         self.draw_idle()
     
+    def unload(self):
+        """
+        Removes all plot data
+        """
+        self.times = None
+        self.positions = None
+        self.beziers = None
+
+        self.lines = []
+        self.scatters = []
+
+        for id in self.handlers:
+            self.mpl_disconnect(id)
+
+        self.fig.clear(False)
+        self.draw()
+
     # ------------------- EVENT HANDLERS ---------------------
 
     def _on_mouse_press(self, event):

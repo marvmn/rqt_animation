@@ -19,10 +19,16 @@ class PublisherManager():
     def __init__(self, group_name):
         """
         Initialize publishers and MoveIt!
+        Raises a ValueError if group_name is not available.
         """
         # initialize moveit
         moveit_commander.roscpp_initialize(sys.argv)
         self.robot = RobotCommander()
+
+        # check if move group is available
+        if not group_name in self.robot.get_group_names():
+            raise ValueError()
+
         self.move_group = moveit_commander.MoveGroupCommander(group_name)
 
         # status variable
@@ -39,11 +45,11 @@ class PublisherManager():
         """
         if self.publish_real_states:
             self.pub_real.publish(state)
-        # else:
-
-        display = DisplayRobotState()
-        display.state.joint_state = state
-        self.pub_fake.publish(display)
+        
+        else:
+            display = DisplayRobotState()
+            display.state.joint_state = state
+            self.pub_fake.publish(display)
     
     def get_robot_state(self, joint_names):
         """
@@ -68,6 +74,18 @@ class PublisherManager():
             
         # return finished array
         return joint_positions
+
+    def check_compatibility(self, animation):
+        '''
+        Checks if the given animation is applicable for the loaded robot.
+        '''
+        
+        # check if joint names are in the move group
+        if not set(animation.joint_names).issubset(self.robot.get_active_joint_names()):
+            return False
+        
+        # if all checks passed, this animation is compatible.
+        return True
     
     def shutdown(self):
         self.pub_fake.unregister()
