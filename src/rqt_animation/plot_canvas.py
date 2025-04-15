@@ -95,6 +95,10 @@ class MplCanvas(FigureCanvasQTAgg):
         right_x = self.axes.transData.transform([self.times[-1], 0])[0]
         return left_x, right_x
 
+    def set_xrange(self, low, high):
+        self.axes.set_xlim(low, high)
+        self.draw()
+
     def draw_timebars(self, time):
         """
         Draw vertical lines that mark the positions of keyframes and a distinct line

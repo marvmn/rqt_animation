@@ -10,7 +10,7 @@ from rosgraph_msgs.msg import Clock
 # RQT
 from qt_gui.plugin import Plugin
 from python_qt_binding import loadUi
-from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog
+from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog, QInputDialog
 from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
 
 # custom widgets
@@ -54,6 +54,9 @@ class AnimationEditor(Plugin):
 
         # what was the timestamp of the last clock tick?
         self._last_time = -1.0
+
+        # how long is the animation in the editor?
+        self._animation_length = 0.0
 
         # set name
         self.setObjectName('AnimationEditor')
@@ -142,6 +145,9 @@ class AnimationEditor(Plugin):
         # add and delete keyframe buttons
         self._widget.addButton.clicked.connect(self._on_addButton_clicked)
 
+        # trim and extend
+        self._widget.extendButton.clicked.connect(self._on_extendButton_clicked)
+
     def shutdown_plugin(self):
         self.publishers.shutdown()
         self.clock_sub.unregister()
@@ -178,6 +184,7 @@ class AnimationEditor(Plugin):
 
         # load animation
         self.animation = Animation(self.animation_file)
+        self._animation_length = self.animation.times[-1]
 
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
@@ -210,10 +217,14 @@ class AnimationEditor(Plugin):
             return
 
         # configure range: Convert to ms because QSlider only works with integers
-        self._widget.timeSlider.setRange(0, int(self.animation.times[-1] * 1000))
+        self._widget.timeSlider.setRange(0, int(self._animation_length * 1000))
 
         # configure size (margins are 9px at every side)
         left, right = self.plot.get_bounds()
+
+        # add additional space without keyframes
+        right += (self._animation_length - self.animation.times[-1]) * ((right - left) / self.animation.times[-1])
+
         self._widget.timeSlider.setMaximumSize(right - left, 100)
         self._widget.horizontalLayout.setContentsMargins(left - 9, 0, self._widget.size().width() - right - 18, 0)
     
@@ -396,7 +407,21 @@ class AnimationEditor(Plugin):
                 # configure time slider
                 self._configure_time_slider()
 
-            
+    def _on_extendButton_clicked(self):
+        """
+        Open dialog to ask for extension length, then extend available plot space
+        by the given amount
+        """
+
+        # open dialog to ask for amount
+        amount, ok = QInputDialog.getDouble(self._widget, 'Extend animation length', 'How many seconds should the animation length be extended by?',
+                                            1.0, 0.0, 1000.0, 3)
+        
+        if ok and amount:
+            self._animation_length += amount
+            self._configure_time_slider()
+            self.plot.set_xrange(0, self._animation_length)
+
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
