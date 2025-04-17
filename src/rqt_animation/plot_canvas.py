@@ -75,6 +75,14 @@ class MplCanvas(FigureCanvasQTAgg):
         self.times = times
         self.beziers = beziers
 
+        # create trajectory with applied bezier curves
+        trajectory = TrajectoryPlanner(times, positions)
+        original_indices = trajectory.fill_up(10)
+        for bezier in beziers:
+            trajectory.apply_bezier_at(original_indices[bezier.indices[0]],
+                                       original_indices[bezier.indices[1]],
+                                       bezier.control_point0, bezier.control_point1)
+
         # delete old plot if there is one
         self.fig.clear(False)
         self.axes = self.fig.add_subplot(111)
@@ -91,7 +99,7 @@ class MplCanvas(FigureCanvasQTAgg):
         for i in range(len(positions.T)):
 
             # draw line
-            l, = self.axes.plot(times, positions.T[i], linewidth=1, zorder=2)
+            l, = self.axes.plot(trajectory.times, trajectory.positions.T[i], linewidth=1, zorder=2)
             self.lines.append(l)
 
             # draw point (and make it pickable)
@@ -242,10 +250,12 @@ class MplCanvas(FigureCanvasQTAgg):
         if self.selected:
 
             for (s, i) in self.selected:
-                joint_idx = int(s.get_label()[len('joint'):])
 
-                self.times[i] = s._offsets[i][0]
-                self.positions[i][joint_idx] = s._offsets[i][1]
+                if s in self.scatters:
+                    joint_idx = int(s.get_label()[len('joint'):])
+
+                    self.times[i] = s._offsets[i][0]
+                    self.positions[i][joint_idx] = s._offsets[i][1]
             
             # redraw time bars
             self.draw_timebars(None)
@@ -281,7 +291,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
         # update currently hovered bezier interval if not in advanced mode
         if not self.bezier_mode:
-
+            print('1')
             # if mouse is out of frame and there is still a rect, remove it
             if event.xdata is None or event.ydata is None and not self.interval_rect is None:
                 self._remove_bezier_selection()
@@ -309,7 +319,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # while there is no selection rect.
         # That means that the current selection is being moved.
         if self.selected and not self.grabbed is None and self.selection_rect is None:
-
+            print('2')
             # something is selected and the mouse was dragged
             # move selected points the specified amount
             movement = np.array([event.xdata, event.ydata]) - self.grabbed
@@ -319,24 +329,47 @@ class MplCanvas(FigureCanvasQTAgg):
                 movement[0] = 0.0
 
             for (s, i) in self.selected:
-                joint_idx = int(s.get_label()[len('joint'):])
-                original_position = np.array([self.times[i], self.positions[i][joint_idx]])
 
-                # move the point from it's original position
-                new_position = original_position + movement
-                s._offsets[i] = new_position
+                # if this was a joint point, move it and adjust joint positions and times
+                if s in self.scatters:
+                    joint_idx = int(s.get_label()[len('joint'):])
+                    original_position = np.array([self.times[i], self.positions[i][joint_idx]])
 
-                # adjust x values of all other points at this time as well
-                for si in self.scatters:
-                    si._offsets[i][0] = new_position[0]
+                    # move the point from it's original position
+                    new_position = original_position + movement
+                    s._offsets[i] = new_position
 
-                # move lines accordingly
-                xdata = self.lines[joint_idx].get_xdata()
-                ydata = self.lines[joint_idx].get_ydata()
-                xdata[i] = new_position[0]
-                ydata[i] = new_position[1]
-                self.lines[joint_idx].set_xdata(xdata)
-                self.lines[joint_idx].set_ydata(ydata)
+                    # adjust x values of all other points at this time as well
+                    for si in self.scatters:
+                        si._offsets[i][0] = new_position[0]
+
+                    # move lines accordingly
+                    xdata = self.lines[joint_idx].get_xdata()
+                    ydata = self.lines[joint_idx].get_ydata()
+                    xdata[i] = new_position[0]
+                    ydata[i] = new_position[1]
+                    self.lines[joint_idx].set_xdata(xdata)
+                    self.lines[joint_idx].set_ydata(ydata)
+                
+                # if it was a bezier control point, adjust bezier parameters
+                else:
+                    if s == self.control_points[0]:
+                        original_position = np.array(self.beziers[self.current_bezier_index].control_point0) * self.intervall_diff[0] \
+                                            + np.array(self.times[self.current_interval_index], -self.intervall_diff[1]/2)
+                        new_position = (original_position + movement \
+                                       - np.array(self.times[self.current_interval_index], -self.intervall_diff[1]/2)) / self.intervall_diff[0]
+                        
+                        self.beziers[self.current_bezier_index].control_point0 = (new_position[0],
+                                                                                  new_position[1])
+                        
+                        # adjust point
+                        # TODO
+
+                        # show selection
+                        self._update_selection()
+                        
+
+                    return
                 
                 
             # redraw figure
@@ -345,6 +378,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
         # check if a point was hovered
         if self.selection_rect is None:
+            print('3')
             for s in self.scatters:
                 hit, item_dict = s.contains(event)
 
@@ -370,16 +404,44 @@ class MplCanvas(FigureCanvasQTAgg):
                     self.draw_idle()
 
                     return
+            
+            for s in self.control_points:
+                hit, item_dict = s.contains(event)
+
+                # point found?
+                if hit:
+
+                    # get point index
+                    index = item_dict['ind'][0]
+
+                    # if this point has already been marked as hovered, skip
+                    if self.hovered == (s, index):
+                        return
+                    
+                    # deselect old point if there was one different from the current
+                    if not self.hovered is None:
+                        self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+
+                    # mark as hovered and increase size of this point
+                    self.hovered = (s, index)
+                    s.get_sizes()[index] = self.default_size * 2
+
+                    # redraw canvas
+                    self.draw_idle()
+                    print('-- skip')
+
+                    return
         
         # if no point was touched, deselect and unhover
         if not self.hovered is None:
+            print('4')
             self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
             self.hovered = None
             self.draw_idle()
 
         # if no point was touched and the mouse is grabbing, draw selection rect
         if self.hovered is None and not self.grabbed is None:
-
+            print('5')
             if not self.selection_rect is None:
                 # check if mouse went out of bounds and keep old values if so
                 if event.xdata is None:
@@ -412,6 +474,8 @@ class MplCanvas(FigureCanvasQTAgg):
                         self.selected.append((scat, i))
 
             self._update_selection()
+
+        print('---')
 
     def _on_key_press(self, event):
         """
@@ -449,6 +513,16 @@ class MplCanvas(FigureCanvasQTAgg):
                 # if not, it gets the default color
                 else:
                     s.get_edgecolor()[i] = self.default_color
+        
+        for p in self.control_points:
+
+            # check if this point is selected
+            if (p, 0) in self.selected:
+                p.get_edgecolor()[0] = np.array([0.3, 0.3, 0.9, 0.8])
+            
+            # if not, it returns to the grey color
+            else:
+                p.get_edgecolor()[0] = np.array([0.5, 0.5, 0.5, 0.5])
         
         # finally, redraw!
         self.draw_idle()
@@ -488,28 +562,28 @@ class MplCanvas(FigureCanvasQTAgg):
         color_weak = np.array([0.6, 0.6, 0.6, 0.4])
         cii = self.current_interval_index  # for prettier shorter lines
         cbi = self.current_bezier_index
-        intervall_diff = np.array([self.times[cii + 1] - self.times[cii],
-                                   abs(self.axes.get_ylim()[0]) + self.axes.get_ylim()[1] - 1.4 ])
+        self.intervall_diff = np.array([self.times[cii + 1] - self.times[cii],
+                                        abs(self.axes.get_ylim()[0]) + self.axes.get_ylim()[1] - 1.4 ])
         
-        point0 = [self.times[cii] + self.beziers[cbi].control_point0[0] * intervall_diff[0],
-                  -intervall_diff[1]/2 + self.beziers[cbi].control_point0[1] * intervall_diff[1]]
-        point1 = [self.times[cii] + self.beziers[cbi].control_point1[0] * intervall_diff[0],
-                  -intervall_diff[1]/2 + self.beziers[cbi].control_point1[1] * intervall_diff[1]]
+        point0 = [self.times[cii] + self.beziers[cbi].control_point0[0] * self.intervall_diff[0],
+                  -self.intervall_diff[1]/2 + self.beziers[cbi].control_point0[1] * self.intervall_diff[1]]
+        point1 = [self.times[cii] + self.beziers[cbi].control_point1[0] * self.intervall_diff[0],
+                  -self.intervall_diff[1]/2 + self.beziers[cbi].control_point1[1] * self.intervall_diff[1]]
         
         scat0 = self.axes.scatter(point0[0], point0[1], c=color)
         scat1 = self.axes.scatter(point1[0], point1[1], c=color)
         
         line0 = self.axes.plot([self.times[cii], point0[0]],
-                               [-intervall_diff[1]/2, point0[1]], c=color)
+                               [-self.intervall_diff[1]/2, point0[1]], c=color)
         line1 = self.axes.plot([self.times[cii + 1], point1[0]],
-                               [intervall_diff[1]/2, point1[1]], c=color)
+                               [self.intervall_diff[1]/2, point1[1]], c=color)
 
         self.control_points = [scat0, scat1]
         self.control_lines = [line0, line1]
 
         # draw faint curve line
         trajectory = TrajectoryPlanner(np.linspace(self.times[cii], self.times[cii + 1], 10),
-                                       np.linspace(-intervall_diff[1]/2, intervall_diff[1]/2, 10))
+                                       np.linspace(-self.intervall_diff[1]/2, self.intervall_diff[1]/2, 10))
         trajectory.apply_bezier_at(0, 9, self.beziers[cbi].control_point0, self.beziers[cbi].control_point1)
 
         line_bezier = self.axes.plot(trajectory.times, trajectory.positions, c=color)
