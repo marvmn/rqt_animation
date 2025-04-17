@@ -317,8 +317,21 @@ class AnimationEditor(Plugin):
                 self.unload_animation()
                 return
 
-        # check if animation is suitable for currently loaded robot from MoveIt TODO
-        print(self.publishers.check_compatibility(self.animation))
+        # check if animation is suitable for currently loaded robot joints from MoveIt
+        if not self.publishers.check_compatibility(self.animation):
+            dialog = QMessageBox(self._widget)
+            dialog.setWindowTitle('Error')
+            dialog.setText(f'Robot could not be loaded: Joint names could not be matched.')
+            dialog.setStandardButtons(QMessageBox.Retry | QMessageBox.Cancel)
+            dialog.setIcon(QMessageBox.Critical)
+            result = dialog.exec()
+
+            if result == QMessageBox.Retry:
+                self._open_file(self.animation_file)
+                return
+            else:
+                self.unload_animation()
+                return
 
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
@@ -419,7 +432,7 @@ class AnimationEditor(Plugin):
         """
         Save current animation in the same file as before
         """
-        if self._new_animation:
+        if self._new_file:
             return self._on_saveAsButton_clicked()
             
         self.save_animation(self.animation_file)
