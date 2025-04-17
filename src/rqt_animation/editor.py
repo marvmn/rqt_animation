@@ -166,6 +166,9 @@ class AnimationEditor(Plugin):
         self._widget.trimButton.clicked.connect(self._on_trimButton_clicked)
         self._widget.extendButton.clicked.connect(self._on_extendButton_clicked)
 
+        # advance bezier editing mode
+        self._widget.curveButton.clicked.connect(self._on_bezierButton_clicked)
+
     def shutdown_plugin(self):
         self.unload_animation()
         return super().shutdown_plugin()
@@ -612,6 +615,13 @@ class AnimationEditor(Plugin):
         self._animation_length = self.animation.times[-1]
         self.plot.set_xrange(0, self._animation_length)
         self._configure_time_slider()
+
+    def _on_bezierButton_clicked(self):
+        """
+        Toggle advanced bezier curve editing mode
+        """
+        self.plot.toggle_bezier_mode()
+        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
