@@ -140,6 +140,38 @@ class MplCanvas(FigureCanvasQTAgg):
         self.fig.clear(False)
         self.draw()
 
+    def remove_selection(self):
+        '''
+        Deletes all selected keyframes
+        '''
+        # check which keyframe indices need to be removed
+        deleted = []
+        for (s, i) in self.selected:
+            if not i in deleted:
+                deleted.append(i)
+        
+        # remove them from latest to earliest
+        deleted.sort(reverse=True)
+        for i in deleted:
+            self.times = np.delete(self.times, i)
+            self.positions = np.delete(self.positions, i, axis=0)
+
+            # update bezier indices
+            for bezier in self.beziers:
+                if bezier.indices[0] >= i:
+                    bezier.indices = (bezier.indices[0] - 1, bezier.indices[1] - 1)
+                elif bezier.indices[1] >= i:
+                    bezier.indices = (bezier.indices[0], bezier.indices[1] - 1)
+                
+                # if bezier does not contain any frames anymore, delete it
+                if bezier.indices[0] >= bezier.indices[1]:
+                    #self.beziers.remove(bezier)
+                    pass
+        
+        # redraw plot
+
+
+
     # ------------------- EVENT HANDLERS ---------------------
 
     def _on_mouse_press(self, event):
@@ -291,8 +323,16 @@ class MplCanvas(FigureCanvasQTAgg):
         if self.hovered is None and not self.grabbed is None:
 
             if not self.selection_rect is None:
+                # check if mouse went out of bounds and keep old values if so
+                if event.xdata is None:
+                    event.xdata = self.selection_rect.get_width() + self.grabbed[0]
+                if event.ydata is None:
+                    event.ydata = self.selection_rect.get_height() + self.grabbed[1]
+                
+                # remove old rect
                 self.selection_rect.remove()
-
+            
+            # calculate size of rect
             difference = np.array([event.xdata, event.ydata]) - self.grabbed
 
             self.selection_rect = Rectangle(self.grabbed, difference[0], difference[1],

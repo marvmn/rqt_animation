@@ -160,6 +160,7 @@ class AnimationEditor(Plugin):
 
         # add and delete keyframe buttons
         self._widget.addButton.clicked.connect(self._on_addButton_clicked)
+        self._widget.deleteButton.clicked.connect(self._on_deleteButton_clicked)
 
         # trim and extend
         self._widget.trimButton.clicked.connect(self._on_trimButton_clicked)
@@ -517,9 +518,26 @@ class AnimationEditor(Plugin):
         # reload plot
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
-        self.plot.set_xrange(0, self._animation_length)
         self._configure_time_slider()
         self._on_timeSlider_valueChanged()
+
+    def _on_deleteButton_clicked(self):
+        '''
+        Delete the currently selected keyframes
+        '''
+        if not self.animation is None:
+            self.plot.remove_selection()
+            self.animation.times = self.plot.times
+            self.animation.positions = self.plot.positions
+            self.animation.beziers = self.plot.beziers
+
+            # reload plot
+            # draw plot for animation
+            self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+            self._configure_time_slider()
+            self._on_timeSlider_valueChanged()
+
+            self.animation._reload_trajectory()
 
     def _on_scaleButton_clicked(self):
         """
