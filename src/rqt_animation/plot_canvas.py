@@ -127,7 +127,8 @@ class MplCanvas(FigureCanvasQTAgg):
         self.handlers.append(self.mpl_connect('motion_notify_event', self._on_mouse_move))
         self.handlers.append(self.mpl_connect('key_press_event', self._on_key_press))
         self.handlers.append(self.mpl_connect('key_release_event', self._on_key_release))
-        self.handlers.append(self.mpl_connect('axes_enter_event', self.on_enter_event))
+        self.handlers.append(self.mpl_connect('axes_enter_event', self._on_enter_event))
+        self.handlers.append(self.mpl_connect('figure_leave_event', self._on_leave_event))
     
     def get_bounds(self):
         """
@@ -303,6 +304,10 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Called when the user moves their mouse
         """
+        # check if mouse went out of bounds, if so stop this
+        if event.xdata is None or event.ydata is None:
+            return
+
         # update currently hovered bezier interval if not in advanced mode
         if not self.bezier_mode:
             # if mouse is out of frame or there is a selection,
@@ -528,8 +533,16 @@ class MplCanvas(FigureCanvasQTAgg):
         if event.key == 'control':
             self.key_ctrl = False
     
-    def on_enter_event(self, _):
+    def _on_enter_event(self, event):
         self.setFocus()
+
+    def _on_leave_event(self, event):
+        '''
+        When the mouse leaves this widget, remove selections
+        '''
+        self.hovered = None
+        self.grabbed = None
+        self._remove_bezier_selection()
 
     # ---------------- HELPERS ----------------------
     def _update_selection(self):
@@ -645,11 +658,20 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Removes bezier interval (rect and control points)
         """
+        # if a control point is selected, remove selection
+        if self.selected and any(point in self.control_points for (point, _) in self.selected):
+            self.selected = []
+        
+        # if the background of the interval is marked yellow, remove marker
         if not self.interval_rect is None:
             self.interval_rect.remove()
             self.interval_rect = None
+
+        # reset indices
         self.current_interval_index = -1
         self.current_bezier_index = -1
+
+        # remove points and lines
         for scatter in self.control_points:
             scatter.remove()
         for line in self.control_lines:
