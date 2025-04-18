@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Polygon
 from matplotlib.backend_tools import Cursors
 import numpy as np
 import copy
@@ -41,6 +41,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.bezier_blocks = []
         self.control_points = []
         self.control_lines = []
+        self.check_mark = []
 
         # rectangle for showing interval
         self.interval_rect = None
@@ -328,6 +329,16 @@ class MplCanvas(FigureCanvasQTAgg):
         else:
             self.selected = []
             self._update_selection()
+
+            # also, if advanced bezier mode is active and the mouse is outside of the interval,
+            # clicking should go back to the block view
+            if self.control_points and event.xdata < self.times[self.current_interval_index] \
+                                    or event.xdata > self.times[self.beziers[self.current_bezier_index].indices[1]]:
+                
+                self._remove_bezier_selection()
+                self._remove_checkmark()
+                self.load_advanced_beziers()
+                self.draw_timebars(None)
             
     def _on_mouse_release(self, event):
         """
@@ -444,6 +455,14 @@ class MplCanvas(FigureCanvasQTAgg):
                 elif index < 0:
                     self._remove_bezier_selection()
 
+        # if in advanced bezier mode, check if the mouse is outside the interval to
+        # display the checkmark (only when a curve is loaded)
+        else:
+            if self.control_points and (event.xdata < self.times[self.current_interval_index] \
+                                   or event.xdata > self.times[self.beziers[self.current_bezier_index].indices[1]]):
+                self._draw_checkmark_at(event.xdata, event.ydata)
+            else:
+                self._remove_checkmark()
 
         # check if something is selected and the mouse button has been pressed
         # while there is no selection rect.
@@ -685,7 +704,11 @@ class MplCanvas(FigureCanvasQTAgg):
         '''
         self.hovered = None
         self.grabbed = None
-        self._remove_bezier_selection()
+
+        if self.bezier_mode:
+            self._remove_checkmark()
+        else:
+            self._remove_bezier_selection()
 
     # ---------------- HELPERS ----------------------
     def _update_selection(self):
@@ -807,3 +830,51 @@ class MplCanvas(FigureCanvasQTAgg):
             line[0].remove()
         self.control_points = []
         self.control_lines = []
+
+    def _draw_checkmark_at(self, x, y):
+        """
+        Draws a green circle with a white check mark in it at the specified position
+        """
+        # save the axe limits to avoid rescaling through the checkmark position
+        xlim = self.axes.get_xlim()
+        ylim = self.axes.get_ylim()
+
+        # get axe ratio
+        bbox = self.axes.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
+        ratio = bbox.width / bbox.height
+        
+        # remove old check mark if there is one
+        if self.check_mark:
+            for i in range(len(self.check_mark)):
+                artist = self.check_mark.pop()
+                artist.remove()
+        
+        # draw green circle
+        circle = self.axes.scatter(x, y, 350, c='green', zorder=4)
+        self.check_mark.append(circle)
+
+        # draw check mark inside
+        checkmark_shape = np.array([[-1.2 ,-1.0, -0.2,1.6,1.8, -0.2,-1.2],
+                                    [0    , 0.2,- 0.3,1  ,0.8, -0.5, 0]]).T / (bbox.height * 15)
+        mark = Polygon(checkmark_shape * np.array([0.4, ratio]) + np.array([x, y]), closed=True, zorder=5, color='white')
+        self.axes.add_patch(mark)
+        self.check_mark.append(mark)
+
+        # apply old axe limits
+        self.axes.set_xlim(xlim)
+        self.axes.set_ylim(ylim)
+
+        # redraw canvas
+        self.set_cursor(Cursors.HAND)
+        self.draw_idle()
+
+    def _remove_checkmark(self):
+        """
+        Remove checkmark and set cursor back to default
+        """
+        if self.check_mark:
+            for i in range(len(self.check_mark)):
+                artist = self.check_mark.pop()
+                artist.remove()
+        self.set_cursor(Cursors.POINTER)
+        self.draw_idle()
