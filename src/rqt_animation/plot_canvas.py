@@ -91,6 +91,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # draw animation lines and points
         self.lines = []
         self.scatters = []
+        self.line_colors = []
 
         sizes = np.ones(len(times)) * self.default_size
         colors = np.tile(self.current_scatter_color, (len(times), 1))
@@ -100,6 +101,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
             # draw line
             l, = self.axes.plot(trajectory.times, trajectory.positions.T[i], linewidth=1, zorder=2)
+            self.line_colors.append(l.get_color())
             self.lines.append(l)
 
             # draw point (and make it pickable)
@@ -244,10 +246,10 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Called when the user releases a mouse button
         """
-        
-        # if there is a selection, update times and positions values according to
+
+        # if there is a selection and no rect, update times and positions values according to
         # plot values (if they were moved while the mouse was held down)
-        if self.selected:
+        if self.selected and self.selection_rect is None:
 
             for (s, i) in self.selected:
 
@@ -275,7 +277,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
             # update animation data in parent widget
             self.update_callback()
-
+        
         # check if a point is hovered and was just released
         if not self.hovered is None and self.hovered in self.selected:
 
@@ -301,11 +303,13 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Called when the user moves their mouse
         """
-
         # update currently hovered bezier interval if not in advanced mode
         if not self.bezier_mode:
-            # if mouse is out of frame and there is still a rect, remove it
-            if event.xdata is None or event.ydata is None and not self.interval_rect is None:
+            # if mouse is out of frame or there is a selection,
+            # and if there is still a rect, remove it
+            if (event.xdata is None or event.ydata is None and not self.interval_rect is None) \
+                or not self.selection_rect is None or (self.selected and self.selected[0][0] in self.scatters):
+
                 self._remove_bezier_selection()
             
             else:
@@ -327,7 +331,7 @@ class MplCanvas(FigureCanvasQTAgg):
                     self._remove_bezier_selection()
 
 
-        # first check if something is selected and the mouse button has been pressed
+        # check if something is selected and the mouse button has been pressed
         # while there is no selection rect.
         # That means that the current selection is being moved.
         if self.selected and not self.grabbed is None and self.selection_rect is None:
@@ -354,13 +358,24 @@ class MplCanvas(FigureCanvasQTAgg):
                     for si in self.scatters:
                         si._offsets[i][0] = new_position[0]
 
-                    # move lines accordingly
-                    xdata = self.lines[joint_idx].get_xdata()
-                    ydata = self.lines[joint_idx].get_ydata()
-                    xdata[i] = new_position[0]
-                    ydata[i] = new_position[1]
-                    self.lines[joint_idx].set_xdata(xdata)
-                    self.lines[joint_idx].set_ydata(ydata)
+                    # replot lines accordingly
+                    trajectory = TrajectoryPlanner(copy.deepcopy(self.times), copy.deepcopy(self.positions))
+                    trajectory.times[i] = new_position[0]
+                    trajectory.positions[i][joint_idx] = new_position[1]
+                    original_indices = trajectory.fill_up(10)
+                    for bezier in self.beziers:
+                        trajectory.apply_bezier_at(original_indices[bezier.indices[0]],
+                                                original_indices[bezier.indices[1]],
+                                                bezier.control_point0, bezier.control_point1)
+
+                    for _ in range(len(self.lines)):
+                        line = self.lines.pop()
+                        line.remove()
+                    
+                    for i in range(len(self.positions.T)):
+                        # draw line
+                        l, = self.axes.plot(trajectory.times, trajectory.positions.T[i], linewidth=1, zorder=2, c=self.line_colors[i])
+                        self.lines.append(l)
                 
                 # if it was a bezier control point, adjust bezier parameters
                 else:
@@ -549,7 +564,6 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         Mark the background of the selected interval yellow, draw control points
         """
-        
         # draw rect in background
         width = self.axes.get_xlim()[1] - self.times[self.current_interval_index] \
             if self.current_interval_index == len(self.times) - 1 else \
@@ -607,6 +621,7 @@ class MplCanvas(FigureCanvasQTAgg):
         '''
         Draw a faint bezier curve in the interval that is specified by self.current_interval_index
         '''
+
         # define color and abbreviations for indices
         color = np.array([0.5, 0.5, 0.5, 0.5])
         cii = self.current_interval_index
@@ -626,7 +641,6 @@ class MplCanvas(FigureCanvasQTAgg):
             l[0].remove()
         self.control_lines.append(line_bezier)
 
-    
     def _remove_bezier_selection(self):
         """
         Removes bezier interval (rect and control points)
