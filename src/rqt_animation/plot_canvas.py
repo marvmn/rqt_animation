@@ -296,14 +296,33 @@ class MplCanvas(FigureCanvasQTAgg):
         # check if the mouse was hovering over a point and clicked it now
         if not self.hovered is None:
             
-            # select point
-            self.selected.append(self.hovered)
+            # if self.hovered is a tuple, a point is selected
+            if type(self.hovered) == tuple:
+                # select point
+                self.selected.append(self.hovered)
 
-            # make the point a little bit bigger
-            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size * 5
+                # make the point a little bit bigger
+                self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size * 5
 
-            # show selection
-            self._update_selection()
+                # show selection
+                self._update_selection()
+            
+            # otherwise, a bezier block is selected
+            else:
+                # remove the grabbed flag, because this is a button press
+                grabbed = None
+
+                # select this bezier curve and open editor
+                indices = self.hovered.get_label().split(':')
+                bezier = self.bezier_layers[int(indices[0])][int(indices[1])]
+
+                self.current_bezier_index = self.beziers.index(bezier)
+                self.current_interval_index = bezier.indices[0]
+                self.unload_advanced_beziers()
+
+                # draw curve and control points
+                interval_size = bezier.indices[1]-bezier.indices[0]
+                self._draw_bezier_interval(interval_size)
         
         # if not, nothing was clicked on, so we deselect everything
         else:
@@ -331,21 +350,30 @@ class MplCanvas(FigureCanvasQTAgg):
                 # if this was a bezier curve control point, update bezier curve
                 else:
                     new_position = (np.array(s._offsets[0]) \
-                                    - np.array([self.times[self.current_interval_index], -self.intervall_diff[1]/2])) / self.intervall_diff
+                                    - np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])) / self.interval_diff
                     if s == self.control_points[0]:
                         self.beziers[self.current_bezier_index].control_point0 = new_position
                     else:
                         self.beziers[self.current_bezier_index].control_point1 = new_position
                     
-                    # reset values
-                    self._remove_bezier_selection()
+                    # reset values if this is not advanced editing mode
+                    if not self.bezier_mode:
+                        self._remove_bezier_selection()
 
-            # redraw time bars
-            self.draw_timebars(None)
+            if self.bezier_mode:
+                self.selected = []
+                self._update_selection()
+            else:
+                # redraw time bars
+                self.draw_timebars(None)
 
-            # update animation data in parent widget
-            self.update_callback()
+                # update animation data in parent widget
+                self.update_callback()
         
+        # if advanced bezier editing mode is active, don't do anything from this point onwards
+        if self.bezier_mode:
+            return
+
         # check if a point is hovered and was just released
         if not self.hovered is None and self.hovered in self.selected:
 
@@ -397,6 +425,20 @@ class MplCanvas(FigureCanvasQTAgg):
                 if not index < 0 and not self.current_interval_index == index:
                     self._remove_bezier_selection()
                     self.current_interval_index = index
+
+                    # find correct bezier curve
+                    for i in range(len(self.beziers)):
+                        if self.beziers[i].indices[0] == self.current_interval_index and self.beziers[i].indices[1] == self.current_interval_index + 1:
+                            self.current_bezier_index = i
+                            break
+                    
+                    # if no curve was found, create new
+                    if self.current_bezier_index == -1:
+                        bezier = BezierCurve(indices=(self.current_interval_index, self.current_interval_index + 1),
+                                            control_point0=np.array([0.2, 0.2]), control_point1=np.array([0.8, 0.8]))
+                        self.current_bezier_index = len(self.beziers)
+                        self.beziers.append(bezier)
+
                     self._draw_bezier_interval()
                 
                 elif index < 0:
@@ -452,18 +494,18 @@ class MplCanvas(FigureCanvasQTAgg):
                 # if it was a bezier control point, adjust bezier parameters
                 else:
                     if s == self.control_points[0]:
-                        original_position = np.array(self.beziers[self.current_bezier_index].control_point0) * self.intervall_diff \
-                                            + np.array([self.times[self.current_interval_index], -self.intervall_diff[1]/2])
+                        original_position = np.array(self.beziers[self.current_bezier_index].control_point0) * self.interval_diff \
+                                            + np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])
                         c = 0
                     
                     else:
-                        original_position = np.array(self.beziers[self.current_bezier_index].control_point1) * self.intervall_diff \
-                                            + np.array([self.times[self.current_interval_index], -self.intervall_diff[1]/2])
+                        original_position = np.array(self.beziers[self.current_bezier_index].control_point1) * self.interval_diff \
+                                            + np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])
                         c = 1
                     
                     # calculate new bezier point
                     new_position = (original_position + movement \
-                                    - np.array([self.times[self.current_interval_index], -self.intervall_diff[1]/2])) / self.intervall_diff
+                                    - np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])) / self.interval_diff
 
                     # adjust point
                     s._offsets[0] = original_position + movement
@@ -477,10 +519,11 @@ class MplCanvas(FigureCanvasQTAgg):
                     self.control_lines[c][0].set_ydata(ydata)
 
                     # redraw bezier curve
+                    interval_length = self.beziers[self.current_bezier_index].indices[1] - self.beziers[self.current_bezier_index].indices[0]
                     if c == 0:
-                        self._draw_faint_bezier_curve(new_position, self.beziers[self.current_bezier_index].control_point1)
+                        self._draw_faint_bezier_curve(new_position, self.beziers[self.current_bezier_index].control_point1, interval_length)
                     else:
-                        self._draw_faint_bezier_curve(self.beziers[self.current_bezier_index].control_point0, new_position)
+                        self._draw_faint_bezier_curve(self.beziers[self.current_bezier_index].control_point0, new_position, interval_length)
                 
                 
             # redraw figure
@@ -513,36 +556,11 @@ class MplCanvas(FigureCanvasQTAgg):
                         s.get_sizes()[index] = self.default_size * 2
 
                         # redraw canvas
+                        self.set_cursor(Cursors.HAND)
                         self.draw_idle()
 
                         return
                 
-                for s in self.control_points:
-                    hit, item_dict = s.contains(event)
-
-                    # point found?
-                    if hit:
-
-                        # get point index
-                        index = item_dict['ind'][0]
-
-                        # if this point has already been marked as hovered, skip
-                        if self.hovered == (s, index):
-                            return
-                        
-                        # deselect old point if there was one different from the current
-                        if not self.hovered is None:
-                            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
-
-                        # mark as hovered and increase size of this point
-                        self.hovered = (s, index)
-                        s.get_sizes()[index] = self.default_size * 2
-
-                        # redraw canvas
-                        self.draw_idle()
-
-                        return
-
             else:
                 for block in self.bezier_blocks:
                     if block.get_bbox().contains(event.xdata, event.ydata):
@@ -561,18 +579,52 @@ class MplCanvas(FigureCanvasQTAgg):
 
                         return
 
+            # always check for control points, since they can exist in both modes
+            for s in self.control_points:
+                hit, item_dict = s.contains(event)
+
+                # point found?
+                if hit:
+
+                    # get point index
+                    index = item_dict['ind'][0]
+
+                    # if this point has already been marked as hovered, skip
+                    if self.hovered == (s, index):
+                        return
+                    
+                    # deselect old point if there was one different from the current
+                    if not self.hovered is None:
+                        self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+
+                    # mark as hovered and increase size of this point
+                    self.hovered = (s, index)
+                    s.get_sizes()[index] = self.default_size * 2
+
+                    # redraw canvas
+                    self.set_cursor(Cursors.HAND)
+                    self.draw_idle()
+
+                    return
+
+
         # if no point was touched, deselect and unhover
         if not self.hovered is None:
-            if self.bezier_mode:
-                self.hovered.set(linewidth=0)
-            else:
+
+            # if a point is selected, self.hovered will be a tuple
+            if type(self.hovered) == tuple:
                 self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+            
+            # if not, it is a bezier block
+            else:
+                self.hovered.set(linewidth=0)
+
             self.hovered = None
             self.draw_idle()
             self.set_cursor(Cursors.POINTER)
 
         # if no point was touched and the mouse is grabbing, draw selection rect
-        if self.hovered is None and not self.grabbed is None:
+        if self.hovered is None and not self.grabbed is None and not self.bezier_mode:
             if not self.selection_rect is None:
                 # check if mouse went out of bounds and keep old values if so
                 if event.xdata is None:
@@ -641,7 +693,7 @@ class MplCanvas(FigureCanvasQTAgg):
         Set colors of all points according to selection
         """
         for s in self.scatters:
-            for i in range(len(s.get_sizes())):
+            for i in range(len(s.get_edgecolor())):
 
                 # check if this point is selected
                 if (s, i) in self.selected:
@@ -664,14 +716,14 @@ class MplCanvas(FigureCanvasQTAgg):
         # finally, redraw!
         self.draw_idle()
 
-    def _draw_bezier_interval(self):
+    def _draw_bezier_interval(self, interval_length=1):
         """
         Mark the background of the selected interval yellow, draw control points
         """
         # draw rect in background
         width = self.axes.get_xlim()[1] - self.times[self.current_interval_index] \
             if self.current_interval_index == len(self.times) - 1 else \
-                self.times[self.current_interval_index + 1] - self.times[self.current_interval_index]
+                self.times[self.current_interval_index + interval_length] - self.times[self.current_interval_index]
 
         self.interval_rect = Rectangle([self.times[self.current_interval_index], self.axes.get_ylim()[0] + 0.7], width, 
                                     abs(self.axes.get_ylim()[0]) + self.axes.get_ylim()[1] - 1.4,
@@ -679,49 +731,36 @@ class MplCanvas(FigureCanvasQTAgg):
         self.axes.add_patch(self.interval_rect)
 
         # load bezier and draw control points
-
-        # find correct bezier curve
-        for i in range(len(self.beziers)):
-            if self.beziers[i].indices[0] == self.current_interval_index and self.beziers[i].indices[1] == self.current_interval_index + 1:
-                self.current_bezier_index = i
-                break
-        
-        # if no curve was found, create new
-        if self.current_bezier_index == -1:
-            bezier = BezierCurve(indices=(self.current_interval_index, self.current_interval_index + 1),
-                                 control_point0=np.array([0.2, 0.2]), control_point1=np.array([0.8, 0.8]))
-            self.current_bezier_index = len(self.beziers)
-            self.beziers.append(bezier)
         
         # create points
         color = np.array([0.5, 0.5, 0.5, 0.5])
         cii = self.current_interval_index
         cbi = self.current_bezier_index
-        self.intervall_diff = np.array([self.times[cii + 1] - self.times[cii],
+        self.interval_diff = np.array([self.times[cii + interval_length] - self.times[cii],
                                         abs(self.axes.get_ylim()[0]) + self.axes.get_ylim()[1] - 1.4 ])
         
-        point0 = [self.times[cii] + self.beziers[cbi].control_point0[0] * self.intervall_diff[0],
-                  -self.intervall_diff[1]/2 + self.beziers[cbi].control_point0[1] * self.intervall_diff[1]]
-        point1 = [self.times[cii] + self.beziers[cbi].control_point1[0] * self.intervall_diff[0],
-                  -self.intervall_diff[1]/2 + self.beziers[cbi].control_point1[1] * self.intervall_diff[1]]
+        point0 = [self.times[cii] + self.beziers[cbi].control_point0[0] * self.interval_diff[0],
+                  -self.interval_diff[1]/2 + self.beziers[cbi].control_point0[1] * self.interval_diff[1]]
+        point1 = [self.times[cii] + self.beziers[cbi].control_point1[0] * self.interval_diff[0],
+                  -self.interval_diff[1]/2 + self.beziers[cbi].control_point1[1] * self.interval_diff[1]]
         
         scat0 = self.axes.scatter(point0[0], point0[1], c=color)
         scat1 = self.axes.scatter(point1[0], point1[1], c=color)
         
         line0 = self.axes.plot([self.times[cii], point0[0]],
-                               [-self.intervall_diff[1]/2, point0[1]], c=color)
-        line1 = self.axes.plot([self.times[cii + 1], point1[0]],
-                               [self.intervall_diff[1]/2, point1[1]], c=color)
+                               [-self.interval_diff[1]/2, point0[1]], c=color)
+        line1 = self.axes.plot([self.times[cii + interval_length], point1[0]],
+                               [self.interval_diff[1]/2, point1[1]], c=color)
 
         self.control_points = [scat0, scat1]
         self.control_lines = [line0, line1]
 
         # draw faint curve line
-        self._draw_faint_bezier_curve(self.beziers[cbi].control_point0, self.beziers[cbi].control_point1)
+        self._draw_faint_bezier_curve(self.beziers[cbi].control_point0, self.beziers[cbi].control_point1, interval_length)
 
         self.draw_idle()
     
-    def _draw_faint_bezier_curve(self, control_point0, control_point1):
+    def _draw_faint_bezier_curve(self, control_point0, control_point1, interval_length=1):
         '''
         Draw a faint bezier curve in the interval that is specified by self.current_interval_index
         '''
@@ -729,11 +768,10 @@ class MplCanvas(FigureCanvasQTAgg):
         # define color and abbreviations for indices
         color = np.array([0.5, 0.5, 0.5, 0.5])
         cii = self.current_interval_index
-        cbi = self.current_bezier_index
 
         # create trajectory planner on the specified interval and apply bezier curve
-        trajectory = TrajectoryPlanner(np.linspace(self.times[cii], self.times[cii + 1], 20),
-                                       np.linspace(-self.intervall_diff[1]/2, self.intervall_diff[1]/2, 20))
+        trajectory = TrajectoryPlanner(np.linspace(self.times[cii], self.times[cii + interval_length], 20),
+                                       np.linspace(-self.interval_diff[1]/2, self.interval_diff[1]/2, 20))
         trajectory.apply_bezier_at(0, 19, control_point0, control_point1)
 
         # plot
