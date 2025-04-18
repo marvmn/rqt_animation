@@ -4,6 +4,7 @@ matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
+from matplotlib.backend_tools import Cursors
 import numpy as np
 import copy
 
@@ -26,9 +27,18 @@ class MplCanvas(FigureCanvasQTAgg):
         # is the figure in advanced bezier mode?
         self.bezier_mode = False
 
+        # bezier curves and their layers in the advanced view
+        self.beziers = []
+        self.bezier_layers = []
+
         # currently shown bezier interval and corresponding bezier
         self.current_interval_index = -1
         self.current_bezier_index = -1
+
+        # figure elements
+        self.positions = []
+        self.times = []
+        self.bezier_blocks = []
         self.control_points = []
         self.control_lines = []
 
@@ -130,6 +140,63 @@ class MplCanvas(FigureCanvasQTAgg):
         self.handlers.append(self.mpl_connect('axes_enter_event', self._on_enter_event))
         self.handlers.append(self.mpl_connect('figure_leave_event', self._on_leave_event))
     
+    def load_advanced_beziers(self):
+        """
+        Loads all Bezier curves as blocks onto the canvas
+        """
+
+        # go through all beziers and create blocks for them
+        # first sort them into layers so that there are no overlapping blocks
+        self.bezier_layers.append([])
+
+        for bezier in self.beziers:
+            
+            sorted = False
+
+            for layer in self.bezier_layers:
+
+                # if layer is empty OR if no block in the layer overlaps with this one, put it in this layer
+                if not layer or \
+                   not any(bezier.indices[0] <= block.indices[0] and bezier.indices[1] >= block.indices[0] or
+                             bezier.indices[0] <= block.indices[1] and bezier.indices[1] >= block.indices[1] or
+                             bezier.indices[0] >= block.indices[0] and bezier.indices[1] <= block.indices[1]
+                             for block in layer):
+                    layer.append(bezier)
+                    sorted = True
+                    break
+                
+                # otherwise, try the next layer
+            
+            # if no layer was found for this bezier, create new layer and put this one in
+            if not sorted:
+                self.bezier_layers.append([bezier])
+        
+        # now draw boxes for every layer
+        height = (self.axes.get_ylim()[1] - self.axes.get_ylim()[0]) * 0.8
+        bottom = sum(self.axes.get_ylim()) - height/2
+        box_height = height / len(self.bezier_layers)
+
+        for layer_id in range(len(self.bezier_layers)):
+            for bezier_id in range(len(self.bezier_layers[layer_id])):
+                bezier = self.bezier_layers[layer_id][bezier_id]
+                rect = Rectangle([self.times[bezier.indices[0]], bottom + layer_id * box_height],
+                                 self.times[bezier.indices[1]] - self.times[bezier.indices[0]],
+                                 box_height * 0.8, linewidth=1, zorder=4, facecolor=[np.random.random((1))[0], 0.2, 0.5, 0.8],
+                                 label=f'{layer_id}:{bezier_id}')
+                self.axes.add_patch(rect)
+                self.bezier_blocks.append(rect)
+        
+        self.draw_idle()
+
+    def unload_advanced_beziers(self):
+        """
+        Unloads and deletes all advanced bezier blocks
+        """
+        for i in range(len(self.bezier_blocks)):
+            block = self.bezier_blocks.pop()
+            block.remove()
+        self.bezier_layers = []
+
     def get_bounds(self):
         """
         Returns the x pixel coordinates of the left and right bounds of the plot
@@ -422,63 +489,87 @@ class MplCanvas(FigureCanvasQTAgg):
 
         # check if a point was hovered
         if self.selection_rect is None:
-            for s in self.scatters:
-                hit, item_dict = s.contains(event)
 
-                # point found?
-                if hit:
+            if not self.bezier_mode:
+                for s in self.scatters:
+                    hit, item_dict = s.contains(event)
 
-                    # get point index
-                    index = item_dict['ind'][0]
+                    # point found?
+                    if hit:
 
-                    # if this point has already been marked as hovered, skip
-                    if self.hovered == (s, index):
+                        # get point index
+                        index = item_dict['ind'][0]
+
+                        # if this point has already been marked as hovered, skip
+                        if self.hovered == (s, index):
+                            return
+                        
+                        # deselect old point if there was one different from the current
+                        if not self.hovered is None:
+                            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+
+                        # mark as hovered and increase size of this point
+                        self.hovered = (s, index)
+                        s.get_sizes()[index] = self.default_size * 2
+
+                        # redraw canvas
+                        self.draw_idle()
+
                         return
-                    
-                    # deselect old point if there was one different from the current
-                    if not self.hovered is None:
-                        self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+                
+                for s in self.control_points:
+                    hit, item_dict = s.contains(event)
 
-                    # mark as hovered and increase size of this point
-                    self.hovered = (s, index)
-                    s.get_sizes()[index] = self.default_size * 2
+                    # point found?
+                    if hit:
 
-                    # redraw canvas
-                    self.draw_idle()
+                        # get point index
+                        index = item_dict['ind'][0]
 
-                    return
-            
-            for s in self.control_points:
-                hit, item_dict = s.contains(event)
+                        # if this point has already been marked as hovered, skip
+                        if self.hovered == (s, index):
+                            return
+                        
+                        # deselect old point if there was one different from the current
+                        if not self.hovered is None:
+                            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
 
-                # point found?
-                if hit:
+                        # mark as hovered and increase size of this point
+                        self.hovered = (s, index)
+                        s.get_sizes()[index] = self.default_size * 2
 
-                    # get point index
-                    index = item_dict['ind'][0]
+                        # redraw canvas
+                        self.draw_idle()
 
-                    # if this point has already been marked as hovered, skip
-                    if self.hovered == (s, index):
                         return
-                    
-                    # deselect old point if there was one different from the current
-                    if not self.hovered is None:
-                        self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
 
-                    # mark as hovered and increase size of this point
-                    self.hovered = (s, index)
-                    s.get_sizes()[index] = self.default_size * 2
+            else:
+                for block in self.bezier_blocks:
+                    if block.get_bbox().contains(event.xdata, event.ydata):
 
-                    # redraw canvas
-                    self.draw_idle()
+                        self.set_cursor(Cursors.HAND)
+                        
+                        # check if another block has been hovered before
+                        if not block == self.hovered and not self.hovered is None:
+                            self.hovered.set(linewidth=0)
 
-                    return
-        
+                        block.set(edgecolor='yellow', linewidth=1)
+
+                        self.hovered = block
+
+                        self.draw_idle()
+
+                        return
+
         # if no point was touched, deselect and unhover
         if not self.hovered is None:
-            self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+            if self.bezier_mode:
+                self.hovered.set(linewidth=0)
+            else:
+                self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
             self.hovered = None
             self.draw_idle()
+            self.set_cursor(Cursors.POINTER)
 
         # if no point was touched and the mouse is grabbing, draw selection rect
         if self.hovered is None and not self.grabbed is None:

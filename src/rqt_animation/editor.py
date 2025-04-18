@@ -627,7 +627,17 @@ class AnimationEditor(Plugin):
         Toggle advanced bezier curve editing mode
         """
         self.plot.toggle_bezier_mode()
+
+        # redraw animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+
+        if self.plot.bezier_mode:
+            self.plot.load_advanced_beziers()
+        else:
+            self.plot.unload_advanced_beziers()
+        
+        self._configure_time_slider()
+        self._on_timeSlider_valueChanged()
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
