@@ -402,7 +402,13 @@ class AnimationEditor(Plugin):
         Called by plot widget.
         Applies changes from the plot to the animation data.
         """
+        # reload animation trajectory
         self.animation._reload_trajectory()
+
+        # redraw animation in case bezier curves were changed
+        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self._configure_time_slider()
+        self._on_timeSlider_valueChanged()
 
     def save_animation(self, file_path):
         """
