@@ -553,13 +553,14 @@ class AnimationEditor(Plugin):
             self.animation.positions = self.plot.positions
             self.animation.beziers = self.plot.beziers
 
-            # reload plot
-            # draw plot for animation
-            self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
-            self._configure_time_slider()
-            self._on_timeSlider_valueChanged()
+            if not self.plot.bezier_mode:
+                # reload plot
+                # draw plot for animation
+                self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+                self._configure_time_slider()
+                self._on_timeSlider_valueChanged()
 
-            self.animation._reload_trajectory()
+                self.animation._reload_trajectory()
 
     def _on_scaleButton_clicked(self):
         """

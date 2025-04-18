@@ -258,31 +258,40 @@ class MplCanvas(FigureCanvasQTAgg):
         '''
         Deletes all selected keyframes
         '''
-        # check which keyframe indices need to be removed
-        deleted = []
-        for (s, i) in self.selected:
-            if not i in deleted:
-                deleted.append(i)
-        
-        # remove them from latest to earliest
-        deleted.sort(reverse=True)
-        for i in deleted:
-            self.times = np.delete(self.times, i)
-            self.positions = np.delete(self.positions, i, axis=0)
+        if self.bezier_mode:
+            # check if a bezier curve is selected
+            if self.current_bezier_index >= 0:
+                # delete bezier
+                self.beziers.pop(self.current_bezier_index)
+                self.update_callback()
 
-            # update bezier indices
-            for bezier in self.beziers:
-                if bezier.indices[0] >= i:
-                    bezier.indices = (bezier.indices[0] - 1, bezier.indices[1] - 1)
-                elif bezier.indices[1] >= i:
-                    bezier.indices = (bezier.indices[0], bezier.indices[1] - 1)
-                
-                # if bezier does not contain any frames anymore, delete it
-                if bezier.indices[0] >= bezier.indices[1]:
-                    #self.beziers.remove(bezier)
-                    pass
-        
-        # redraw plot
+                # go back to block view
+                self._remove_bezier_selection()
+                self.load_advanced_beziers()
+        else:
+            # check which keyframe indices need to be removed
+            deleted = []
+            for (s, i) in self.selected:
+                if not i in deleted:
+                    deleted.append(i)
+            
+            # remove them from latest to earliest  
+            deleted.sort(reverse=True)
+            for i in deleted:
+                self.times = np.delete(self.times, i)
+                self.positions = np.delete(self.positions, i, axis=0)
+
+                # update bezier indices
+                for bezier in self.beziers:
+                    if bezier.indices[0] >= i:
+                        bezier.indices = (bezier.indices[0] - 1, bezier.indices[1] - 1)
+                    elif bezier.indices[1] >= i:
+                        bezier.indices = (bezier.indices[0], bezier.indices[1] - 1)
+                    
+                    # if bezier does not contain any frames anymore, delete it
+                    if bezier.indices[0] >= bezier.indices[1]:
+                        #self.beziers.remove(bezier)
+                        pass
 
     # ------------------- EVENT HANDLERS ---------------------
 
@@ -709,6 +718,8 @@ class MplCanvas(FigureCanvasQTAgg):
             self._remove_checkmark()
         else:
             self._remove_bezier_selection()
+        
+        self.draw_idle()
 
     # ---------------- HELPERS ----------------------
     def _update_selection(self):
