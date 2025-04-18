@@ -132,7 +132,7 @@ class AnimationEditor(Plugin):
 
         # file menu
         self.newButton.triggered.connect(self._on_newButton_clicked)
-        self.openButton.triggered.connect(self._on_fileButton_clicked)
+        self.openButton.triggered.connect(self._on_openButton_clicked)
         self.saveButton.triggered.connect(self._on_saveButton_clicked)
         self.saveAsButton.triggered.connect(self._on_saveAsButton_clicked)
         self.exitButton.triggered.connect(self._on_exitButton_clicked)
@@ -427,7 +427,7 @@ class AnimationEditor(Plugin):
         """
         self._new_animation()
 
-    def _on_fileButton_clicked(self):
+    def _on_openButton_clicked(self):
         """
         Open an animation file
         """
@@ -497,7 +497,7 @@ class AnimationEditor(Plugin):
             # round time to 3 digits after comma to avoid rounding errors
             # since the time slider works with millisecond integers, a
             # maximum of 3 digits makes sense here.
-            if round(time, 3) > self._widget.timeSlider.value() / 1000.0:
+            if np.floor(time * 1000) > self._widget.timeSlider.value():
                 self._widget.timeSlider.setValue(time * 1000.0)
                 return
     
@@ -634,8 +634,10 @@ class AnimationEditor(Plugin):
 
         if self.plot.bezier_mode:
             self.plot.load_advanced_beziers()
+            self._widget.curveButton.setText('Toggle Normal Animation Editing')
         else:
             self.plot.unload_advanced_beziers()
+            self._widget.curveButton.setText('Toggle Advanced Curve Editing')
         
         self._configure_time_slider()
         self._on_timeSlider_valueChanged()

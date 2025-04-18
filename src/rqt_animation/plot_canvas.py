@@ -23,6 +23,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.fig.set_facecolor(background)
         self.axes.set_facecolor(background)
         self.update_callback = update_callback
+        self.parent = parent
 
         # is the figure in advanced bezier mode?
         self.bezier_mode = False
@@ -694,16 +695,30 @@ class MplCanvas(FigureCanvasQTAgg):
         # update key down variables
         if event.key == 'control':
             self.key_ctrl = True
+        if event.key == 'shift':
+            self.key_shift = True
     
     def _on_key_release(self, event):
         """
         Called when a key is released.
         """
-
         # update key down variables
         if event.key == 'control':
             self.key_ctrl = False
-    
+        if event.key == 'shift':
+            self.key_shift = False
+        
+        # file shortcuts
+        if self.key_ctrl:
+            if event.key == 'ctrl+S':
+                self.parent._on_saveAsButton_clicked()
+            elif event.key == 'ctrl+s':
+                self.parent._on_saveButton_clicked()
+            elif event.key == 'ctrl+n':
+                self.parent._on_newButton_clicked()
+            elif event.key == 'ctrl+o':
+                self.parent._on_openButton_clicked()
+        
     def _on_enter_event(self, event):
         self.setFocus()
 
