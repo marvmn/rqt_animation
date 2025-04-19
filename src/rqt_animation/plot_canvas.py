@@ -657,28 +657,26 @@ class MplCanvas(FigureCanvasQTAgg):
                         return
                 
             else:
-                for block in self.bezier_blocks:
-                    if block.get_bbox().contains(event.xdata, event.ydata):
-
-                        self.set_cursor(Cursors.HAND)
-                        
-                        # check if another block has been hovered before
-                        if not block == self.hovered and not self.hovered is None:
-                            self.hovered.set(linewidth=0)
-
-                        block.set(edgecolor='yellow', linewidth=1)
-
-                        self.hovered = block
-
-                        self.draw_idle()
-
-                        return
                 
                 if self.drawing_space is not None and self.drawing_space.get_bbox().contains(event.xdata, event.ydata):
 
                     self.set_cursor(Cursors.SELECT_REGION)
                     self.hovered = self.drawing_space
                     return
+
+                for block in self.bezier_blocks:
+                    if block.get_bbox().contains(event.xdata, event.ydata):
+
+                        self.set_cursor(Cursors.HAND)
+                        
+                        # check if another block has been hovered before
+                        if not block == self.hovered and not self.hovered is None and not self.hovered == self.drawing_space:
+                            self.hovered.set(linewidth=0)
+
+                        block.set(edgecolor='yellow', linewidth=1)
+                        self.hovered = block
+                        self.draw_idle()
+                        return
 
             # always check for control points, since they can exist in both modes
             for s in self.control_points:
@@ -1021,11 +1019,11 @@ class MplCanvas(FigureCanvasQTAgg):
         # draw lower and upper line
         upper, = self.axes.plot([self.times[0], self.times[-1]],
                                 [self.joint_limits[joint_index][0], self.joint_limits[joint_index][0]],
-                                c='r', linestyle='--')
+                                c='r', linestyle='-.', linewidth=0.75)
         
         lower, = self.axes.plot([self.times[0], self.times[-1]],
                                 [self.joint_limits[joint_index][1], self.joint_limits[joint_index][1]],
-                                c='r', linestyle='--')
+                                c='r', linestyle='-.', linewidth=0.5)
 
         self.joint_limit_lines = [upper, lower]
         
