@@ -357,6 +357,7 @@ class AnimationEditor(Plugin):
 
         # draw plot for animation
         self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self.apply_joint_limits()
         self.plot.draw_timebars(0.0)
 
         # configure time slider
@@ -436,6 +437,24 @@ class AnimationEditor(Plugin):
         file = open(file_path, mode='w')
         self.animation.save_yaml(file)
         file.close()
+
+    def apply_joint_limits(self):
+        """
+        Queries joint position limits from robot commander and
+        sends them to the plot widget
+        """
+        # get joint limits
+        limits = []
+
+        for name in self.animation.joint_names:
+            try:
+                joint = self.publishers.robot.get_joint(name)
+                limits.append([joint.min_bound(), joint.max_bound()])
+            except:
+                print('ERROR: Joint', name, 'not found in robot.')
+
+        # apply to plot
+        self.plot.set_joint_limits(limits)
 
 
     # --------------------------------- BUTTON HANDLERS ----------------------------------

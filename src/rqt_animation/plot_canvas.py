@@ -33,6 +33,10 @@ class MplCanvas(FigureCanvasQTAgg):
         self.beziers = []
         self.bezier_layers = []
 
+        # joint position limits
+        self.joint_limits = []
+        self.joint_limit_lines = []
+
         # currently shown bezier interval and corresponding bezier
         self.current_interval_index = -1
         self.current_bezier_index = -1
@@ -310,6 +314,12 @@ class MplCanvas(FigureCanvasQTAgg):
                         #self.beziers.remove(bezier)
                         pass
 
+    def set_joint_limits(self, limits):
+        '''
+        Set the joint position limits
+        '''
+        self.joint_limits = limits
+
     # ------------------- EVENT HANDLERS ---------------------
 
     def _on_mouse_press(self, event):
@@ -336,7 +346,7 @@ class MplCanvas(FigureCanvasQTAgg):
             
             # otherwise, a bezier block or the drawing space is selected
             elif self.hovered == self.drawing_space:
-                # start drawing here
+                # start drawing
                 pass
             else:
                 # remove the grabbed flag, because this is a button press
@@ -542,6 +552,11 @@ class MplCanvas(FigureCanvasQTAgg):
 
                     # move the point from it's original position
                     new_position = original_position + movement
+
+                    # check if joint constraints are being violated
+                    new_position[1] = max(new_position[1], self.joint_limits[joint_idx][0])
+                    new_position[1] = min(new_position[1], self.joint_limits[joint_idx][1])
+
                     s._offsets[i] = new_position
 
                     # adjust x values of all other points at this time as well
@@ -604,6 +619,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 
             # redraw figure
             self.draw_idle()
+            return
 
 
         # check if a point was hovered
@@ -630,6 +646,9 @@ class MplCanvas(FigureCanvasQTAgg):
                         # mark as hovered and increase size of this point
                         self.hovered = (s, index)
                         s.get_sizes()[index] = self.default_size * 2
+
+                        # draw joint limit lines
+                        self._draw_joint_limit_lines(int(s.get_label()[len('joint'):]))
 
                         # redraw canvas
                         self.set_cursor(Cursors.HAND)
@@ -694,8 +713,10 @@ class MplCanvas(FigureCanvasQTAgg):
         if not self.hovered is None:
 
             # if a point is selected, self.hovered will be a tuple
+            # in that case set previously hovered point back to normal size and remove limit lines
             if type(self.hovered) == tuple:
                 self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
+                self._draw_joint_limit_lines(None)
             
             # if not, it is a bezier block or the drawing space
             elif self.hovered == self.drawing_space:
@@ -980,3 +1001,31 @@ class MplCanvas(FigureCanvasQTAgg):
                                       end_coord - start_coord, self.drawing_space.get_height(),
                                       facecolor='green')
         self.axes.add_patch(self.drawn_bezier)
+
+    def _draw_joint_limit_lines(self, joint_index):
+        """
+        Displays two dashed lines for the lower and upper position
+        limit for the specified joint.
+        If joint_index is None, the old lines will just get deleted.
+        """
+        # remove old lines if there are any
+        if self.joint_limit_lines:
+            for i in range(len(self.joint_limit_lines)):
+                line = self.joint_limit_lines.pop()
+                line.remove()
+        
+        # if joint index is None, exit here
+        if joint_index is None:
+            return
+
+        # draw lower and upper line
+        upper, = self.axes.plot([self.times[0], self.times[-1]],
+                                [self.joint_limits[joint_index][0], self.joint_limits[joint_index][0]],
+                                c='r', linestyle='--')
+        
+        lower, = self.axes.plot([self.times[0], self.times[-1]],
+                                [self.joint_limits[joint_index][1], self.joint_limits[joint_index][1]],
+                                c='r', linestyle='--')
+
+        self.joint_limit_lines = [upper, lower]
+        
