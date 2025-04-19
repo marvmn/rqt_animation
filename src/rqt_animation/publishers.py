@@ -16,7 +16,7 @@ from sensor_msgs.msg import JointState
 
 class PublisherManager():
 
-    def __init__(self, group_name):
+    def __init__(self, group_name, fake_publish_topic="/display_robot_state", joint_command_topic="/joint_command"):
         """
         Initialize publishers and MoveIt!
         Raises a ValueError if group_name is not available.
@@ -31,21 +31,30 @@ class PublisherManager():
 
         self.move_group = moveit_commander.MoveGroupCommander(group_name)
 
-        # status variable
+        # status variables
         self.publish_real_states = False
+        self.stopped = False
 
         # publishers
-        self.pub_fake = rospy.Publisher("/display_robot_state", DisplayRobotState, queue_size=10)
-        self.pub_real = rospy.Publisher("/joint_command", JointState, queue_size=10)
+        self.pub_fake = rospy.Publisher(fake_publish_topic, DisplayRobotState, queue_size=10)
+        self.pub_real = rospy.Publisher(joint_command_topic, JointState, queue_size=10)
 
 
     def publish_state(self, state):
         """
         Publish a single joint state
         """
+        # first check, if the publisher is still registered
+        # it's possilbe that it has already been unregistered, but due to
+        # different threads for the GUI and ROS, this method is still being called
+        if self.stopped:
+            return
+
+        # if real states should be published, use real publisher
         if self.publish_real_states:
             self.pub_real.publish(state)
         
+        # otherwise use display robot state publisher
         else:
             display = DisplayRobotState()
             display.state.joint_state = state
@@ -88,5 +97,6 @@ class PublisherManager():
         return True
     
     def shutdown(self):
+        self.stopped = True
         self.pub_fake.unregister()
         self.pub_real.unregister()

@@ -12,7 +12,6 @@ from rosgraph_msgs.msg import Clock
 from qt_gui.plugin import Plugin
 from python_qt_binding import loadUi
 from python_qt_binding.QtWidgets import QWidget, QMenu, QFileDialog, QInputDialog, QMessageBox
-from qt_gui_py_common.simple_settings_dialog import SimpleSettingsDialog
 
 # moveit
 import moveit_commander
@@ -22,6 +21,7 @@ from moveit_commander.robot import RobotCommander
 from rqt_animation.plot_canvas import MplCanvas
 from rqt_animation.dialog_scale import ScaleDialog
 from rqt_animation.dialog_new import NewDialog
+from rqt_animation.dialog_settings import SettingsDialog
 
 # Animation stuff
 from expressive_motion_generation.animation_execution import Animation
@@ -55,8 +55,10 @@ class AnimationEditor(Plugin):
         # animation instance
         self.animation = None
 
-        # publisher manager
+        # publisher manager and topic names
         self.publishers = None
+        self.topic_fake = '/display_robot_state'
+        self.topic_command = '/joint_command'
 
         # clock subscriptor
         self.clock_sub = None
@@ -177,6 +179,12 @@ class AnimationEditor(Plugin):
         # TODO: save config here
         # usually per instance_settings.set_value(k, v)
         instance_settings.set_value('file', self.animation_file)
+        instance_settings.set_value('topic_fake', self.topic_fake)
+        if self.topic_fake == '':
+            self.topic_fake = '/display_robot_state'
+        instance_settings.set_value('topic_command', self.topic_command)
+        if self.topic_command == '':
+            self.topic_command = '/joint_command'
         return super().save_settings(plugin_settings, instance_settings)
     
     def restore_settings(self, plugin_settings, instance_settings):
@@ -185,15 +193,26 @@ class AnimationEditor(Plugin):
         ret = super().restore_settings(plugin_settings, instance_settings)
         if not instance_settings.value('file') is None:
             self._open_file(instance_settings.value('file'))
+        self.topic_command = instance_settings.value('topic_command')
+        self.topic_fake = instance_settings.value('topic_fake')
         return ret
     
     def trigger_configuration(self):
         """
         Open Settings
         """
-        dialog = SimpleSettingsDialog(title='Animation Editor Settings')
-        
-        # TODO Hier Einstellungen falls notwendig
+        dialog = SettingsDialog(self.topic_command, self.topic_fake)
+        result = dialog.exec()
+
+        # if OK was pressed, save new topic names
+        if result:
+            self.topic_command = dialog._widget.jointCommandPublishEdit.text()
+            self.topic_fake = dialog._widget.fakeJointStatePublishTopic.text()
+
+            # if an animation is currently loaded, reload publishers
+            if self.animation is not None:
+                self.publishers.shutdown()
+                self.publishers = PublisherManager(self.animation.move_group, self.topic_fake, self.topic_command)
     
     def unload_animation(self):
         """
@@ -302,7 +321,7 @@ class AnimationEditor(Plugin):
 
         # initialize publishers
         try:
-            self.publishers = PublisherManager(self.animation.move_group)
+            self.publishers = PublisherManager(self.animation.move_group, self.topic_fake, self.topic_command)
             self.publishers.publish_real_states = self._widget.publishCheckBox.checkState()
         except ValueError:
             # if the move group was not found, cancel loading this animation
@@ -635,9 +654,19 @@ class AnimationEditor(Plugin):
         if self.plot.bezier_mode:
             self.plot.load_advanced_beziers()
             self._widget.curveButton.setText('Toggle Normal Animation Editing')
+
+            # deactivate buttons
+            self._widget.addButton.setEnabled(False)
+            self._widget.trimButton.setEnabled(False)
+            self._widget.extendButton.setEnabled(False)
         else:
             self.plot.unload_advanced_beziers()
             self._widget.curveButton.setText('Toggle Advanced Curve Editing')
+
+            # activate buttons
+            self._widget.addButton.setEnabled(True)
+            self._widget.trimButton.setEnabled(True)
+            self._widget.extendButton.setEnabled(True)
         
         self._configure_time_slider()
         self._on_timeSlider_valueChanged()

@@ -182,7 +182,6 @@ class MplCanvas(FigureCanvasQTAgg):
         height = (self.axes.get_ylim()[1] - self.axes.get_ylim()[0]) * 0.8
         bottom = sum(self.axes.get_ylim())/2 - height/2
         box_height = height / (len(self.bezier_layers) + 1)
-        print(f'bottom={bottom}, layers={len(self.bezier_layers)}, height={height} (before)')
 
         for layer_id in range(len(self.bezier_layers)):
             for bezier_id in range(len(self.bezier_layers[layer_id])):
@@ -195,11 +194,9 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.bezier_blocks.append(rect)
         
         # mark drawing space for new boxes
-        print(f'bottom={bottom}, layers={len(self.bezier_layers)}, height={height}')
         self.drawing_space = Rectangle([self.times[0], bottom + len(self.bezier_layers) * box_height],
                                        self.times[-1] - self.times[0], box_height, zorder=3, facecolor=[0.8, 0.6, 0.0, 0.2],
                                        edgecolor='yellow', linewidth=1, linestyle='--')
-        print('created new drawing space at y =', self.drawing_space.get_y())
         self.axes.add_patch(self.drawing_space)
 
         self.draw_idle()
