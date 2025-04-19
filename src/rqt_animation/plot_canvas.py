@@ -1,5 +1,6 @@
 # Matplotlib
 import matplotlib
+import matplotlib.patheffects
 matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -43,6 +44,10 @@ class MplCanvas(FigureCanvasQTAgg):
         self.control_points = []
         self.control_lines = []
         self.check_mark = []
+
+        # block where a bezier can be drawn in
+        self.drawing_space = None
+        self.drawn_bezier = None
 
         # rectangle for showing interval
         self.interval_rect = None
@@ -149,7 +154,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
         # go through all beziers and create blocks for them
         # first sort them into layers so that there are no overlapping blocks
-        self.bezier_layers.append([])
+        self.bezier_layers = []
 
         for bezier in self.beziers:
             
@@ -173,10 +178,11 @@ class MplCanvas(FigureCanvasQTAgg):
             if not sorted:
                 self.bezier_layers.append([bezier])
         
-        # now draw boxes for every layer
+        # now draw boxes for every layer, leave one layer for new boxes
         height = (self.axes.get_ylim()[1] - self.axes.get_ylim()[0]) * 0.8
-        bottom = sum(self.axes.get_ylim()) - height/2
-        box_height = height / len(self.bezier_layers)
+        bottom = sum(self.axes.get_ylim())/2 - height/2
+        box_height = height / (len(self.bezier_layers) + 1)
+        print(f'bottom={bottom}, layers={len(self.bezier_layers)}, height={height} (before)')
 
         for layer_id in range(len(self.bezier_layers)):
             for bezier_id in range(len(self.bezier_layers[layer_id])):
@@ -188,6 +194,14 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.axes.add_patch(rect)
                 self.bezier_blocks.append(rect)
         
+        # mark drawing space for new boxes
+        print(f'bottom={bottom}, layers={len(self.bezier_layers)}, height={height}')
+        self.drawing_space = Rectangle([self.times[0], bottom + len(self.bezier_layers) * box_height],
+                                       self.times[-1] - self.times[0], box_height, zorder=3, facecolor=[0.8, 0.6, 0.0, 0.2],
+                                       edgecolor='yellow', linewidth=1, linestyle='--')
+        print('created new drawing space at y =', self.drawing_space.get_y())
+        self.axes.add_patch(self.drawing_space)
+
         self.draw_idle()
 
     def unload_advanced_beziers(self):
@@ -198,6 +212,11 @@ class MplCanvas(FigureCanvasQTAgg):
             block = self.bezier_blocks.pop()
             block.remove()
         self.bezier_layers = []
+        if self.drawing_space is not None:
+            self.drawing_space.remove()
+            self.drawing_space = None
+        if self.check_mark:
+            self._remove_checkmark()
 
     def get_bounds(self):
         """
@@ -318,10 +337,13 @@ class MplCanvas(FigureCanvasQTAgg):
                 # show selection
                 self._update_selection()
             
-            # otherwise, a bezier block is selected
+            # otherwise, a bezier block or the drawing space is selected
+            elif self.hovered == self.drawing_space:
+                # start drawing here
+                pass
             else:
                 # remove the grabbed flag, because this is a button press
-                grabbed = None
+                self.grabbed = None
 
                 # select this bezier curve and open editor
                 indices = self.hovered.get_label().split(':')
@@ -391,8 +413,32 @@ class MplCanvas(FigureCanvasQTAgg):
                 # update animation data in parent widget
                 self.update_callback()
         
-        # if advanced bezier editing mode is active, don't do anything from this point onwards
+        # if advanced bezier editing mode is active, don't do anything from this point onwards except
+        # drawn bezier block handling
         if self.bezier_mode:
+            self.grabbed = None
+
+            # if there is a drawn bezier, save it as new curve and go into editor!
+            if self.drawn_bezier is not None:
+                first_index = np.abs(self.times - self.drawn_bezier.get_x()).argmin()
+                second_index = np.abs(self.times - self.drawn_bezier.get_x() - self.drawn_bezier.get_width()).argmin()
+                self.drawn_bezier.remove()
+                self.drawn_bezier = None
+
+                # if the indices are the same, don't create a new bezier and cancel
+                if not first_index == second_index:
+                    bezier = BezierCurve((first_index, second_index),
+                                         np.array([0.2, 0.2]), np.array([0.8, 0.8]))
+                    self.beziers.append(bezier)
+
+                    self.current_bezier_index = len(self.beziers) - 1
+                    self.current_interval_index = bezier.indices[0]
+                    self.unload_advanced_beziers()
+
+                    # draw curve and control points
+                    interval_size = bezier.indices[1]-bezier.indices[0]
+                    self._draw_bezier_interval(interval_size)
+
             return
 
         # check if a point is hovered and was just released
@@ -473,6 +519,10 @@ class MplCanvas(FigureCanvasQTAgg):
                 self._draw_checkmark_at(event.xdata, event.ydata)
             else:
                 self._remove_checkmark()
+            
+            # if a block is drawn, display it
+            if self.hovered == self.drawing_space and self.grabbed:
+                self._draw_new_bezier_block(event.xdata)
 
         # check if something is selected and the mouse button has been pressed
         # while there is no selection rect.
@@ -607,6 +657,12 @@ class MplCanvas(FigureCanvasQTAgg):
                         self.draw_idle()
 
                         return
+                
+                if self.drawing_space is not None and self.drawing_space.get_bbox().contains(event.xdata, event.ydata):
+
+                    self.set_cursor(Cursors.SELECT_REGION)
+                    self.hovered = self.drawing_space
+                    return
 
             # always check for control points, since they can exist in both modes
             for s in self.control_points:
@@ -644,7 +700,9 @@ class MplCanvas(FigureCanvasQTAgg):
             if type(self.hovered) == tuple:
                 self.hovered[0].get_sizes()[self.hovered[1]] = self.default_size
             
-            # if not, it is a bezier block
+            # if not, it is a bezier block or the drawing space
+            elif self.hovered == self.drawing_space:
+                pass
             else:
                 self.hovered.set(linewidth=0)
 
@@ -904,3 +962,24 @@ class MplCanvas(FigureCanvasQTAgg):
                 artist.remove()
         self.set_cursor(Cursors.POINTER)
         self.draw_idle()
+
+    def _draw_new_bezier_block(self, xdata):
+        """
+        Draw a new bezier block in the drawing space in advanced editing mode.
+        Block starts at the mouse grabbed location and goes to the xdata coordinate.
+        """
+
+        # get indices for start and end
+        end_coord = self.times[np.abs(self.times - xdata).argmin()]
+
+        # delete old block if it exists
+        if not self.drawn_bezier is None:
+            start_coord = self.drawn_bezier.get_x()
+            self.drawn_bezier.remove()
+        else:
+            start_coord = self.times[np.abs(self.times - self.grabbed[0]).argmin()]
+
+        self.drawn_bezier = Rectangle([start_coord, self.drawing_space.get_y()],
+                                      end_coord - start_coord, self.drawing_space.get_height(),
+                                      facecolor='green')
+        self.axes.add_patch(self.drawn_bezier)
