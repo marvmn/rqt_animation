@@ -417,6 +417,10 @@ class MplCanvas(FigureCanvasQTAgg):
                 # redraw time bars
                 self.draw_timebars(None)
 
+                # remove selection rect
+                self.selection_rect = None
+                self.selected = []
+
                 # update animation data in parent widget
                 self.update_callback()
         
@@ -584,7 +588,7 @@ class MplCanvas(FigureCanvasQTAgg):
                         self.lines.append(l)
                 
                 # if it was a bezier control point, adjust bezier parameters
-                else:
+                elif s in self.control_points:
 
                     # limit the mouse to the current interval
                     event.xdata = np.max([event.xdata, self.times[self.current_interval_index]])
