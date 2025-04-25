@@ -331,6 +331,52 @@ class MplCanvas(FigureCanvasQTAgg):
         '''
         self.joint_limits = limits
 
+    def get_override_joint_state(self):
+        """
+        If the current joint state is being edited, returns the
+        correct current joint state
+        """
+        # check if something is being grabbed
+        if self.selected and not self.grabbed is None and self.selection_rect is None:
+
+            # prepare position list
+            time_index = self.hovered[1]
+            position_list = copy.deepcopy(self.positions[time_index])
+
+            # search for changed joints
+            for (s, i) in self.selected:
+
+                # if this was a joint position point, update joint position
+                if s in self.scatters:
+                    joint_idx = int(s.get_label()[len('joint'):])
+                    position_list[joint_idx] = s._offsets[i][1]
+            
+            # return list
+            return position_list
+        
+        # if nothing is grabbed, return nothing
+        return None
+
+
+    def get_highlight(self):
+        """
+        ! NOT IMPLEMENTED
+        If a joint is being hovered, return which joint index it is so that
+        the corresponding link can be highlighted in the robot state display.
+        """
+
+        # first, check if a joint is being hovered
+        if type(self.hovered) == tuple:
+            s, _ = self.hovered
+            if s in self.scatters:
+
+                # get which link this joint belongs to
+                joint_idx = int(s.get_label()[len('joint'):])
+                return joint_idx
+    
+        # if nothing was found return None
+        return None
+
     # ------------------- EVENT HANDLERS ---------------------
 
     def _on_mouse_press(self, event):

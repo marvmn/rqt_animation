@@ -40,9 +40,10 @@ class PublisherManager():
         self.pub_real = rospy.Publisher(joint_command_topic, JointState, queue_size=10)
 
 
-    def publish_state(self, state):
+    def publish_state(self, state, highlight=None):
         """
-        Publish a single joint state
+        Publish a single joint state.
+        If highlight is not None, the given joint is highlighted in a color.
         """
         # first check, if the publisher is still registered
         # it's possilbe that it has already been unregistered, but due to
@@ -58,6 +59,18 @@ class PublisherManager():
         else:
             display = DisplayRobotState()
             display.state.joint_state = state
+
+            # if a link to highlight is given, add it to message
+            if highlight is not None:
+                object_color = ObjectColor()
+                object_color.id = highlight
+                object_color.color.g = 1.0
+                object_color.color.r = 0.2
+                object_color.color.b = 0.5
+                object_color.color.a = 1.0
+                display.highlight_links.append(object_color)
+
+            # publish!
             self.pub_fake.publish(display)
     
     def get_robot_state(self, joint_names):

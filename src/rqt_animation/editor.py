@@ -407,12 +407,20 @@ class AnimationEditor(Plugin):
         
         state.name = self.animation.joint_names
 
-        # get joint positions
-        time = self._widget.timeSlider.value() / 1000.0
-        if time >= self.animation.times[-1]:
-            state.position = self.animation.positions[-1].tolist()
+        # check if state from animation or from plot needs to be published
+        override_positions = self.plot.get_override_joint_state()
+
+        if override_positions is None:
+            # get joint positions from animation
+            time = self._widget.timeSlider.value() / 1000.0
+            if time >= self.animation.times[-1]:
+                state.position = self.animation.positions[-1].tolist()
+            else:
+                state.position = self.animation.trajectory_planner.get_position_at(time).tolist()
+        
         else:
-            state.position = self.animation.trajectory_planner.get_position_at(time).tolist()
+            # get joint positions from plot
+            state.position = override_positions
         
         # publish
         self.publishers.publish_state(state)
