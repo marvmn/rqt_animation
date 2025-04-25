@@ -6,6 +6,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Polygon
 from matplotlib.backend_tools import Cursors
+from matplotlib.backend_bases import MouseButton
 import numpy as np
 import copy
 
@@ -79,15 +80,16 @@ class MplCanvas(FigureCanvasQTAgg):
         # if the mouse has been held down, save the point where it was first pressed
         self.grabbed = None
 
-        # rectangle that appears when dragging the mouse to select something
+        # rectangle that appears when dragging the mouse to select something or to zoom
         self.selection_rect = None
+        self.zoom_rect = None
 
         # are these keys pressed currently?
         self.key_ctrl = False
 
         super().__init__(self.fig)
     
-    def load_animation(self, positions, times, beziers):
+    def load_animation(self, positions, times, beziers, rescale=True):
         '''
         Plot animation file
         '''
@@ -95,6 +97,9 @@ class MplCanvas(FigureCanvasQTAgg):
         self.positions = positions
         self.times = times
         self.beziers = beziers
+
+        old_xlim = self.axes.get_xlim()
+        old_ylim = self.axes.get_ylim()
 
         # create trajectory with applied bezier curves
         trajectory = TrajectoryPlanner(times, positions)
@@ -140,7 +145,12 @@ class MplCanvas(FigureCanvasQTAgg):
                 s.set_color(self.default_color * np.array([1.2, 1.2, 1.2, 1.0]))
         
         # adjust plot size
-        self.fig.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.15)
+        if rescale:
+            self.fig.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.15)
+            self.adjust_yrange()
+        else:
+            self.axes.set_xlim(old_xlim)
+            self.axes.set_ylim(old_ylim)
 
         # connect events
         self.handlers.append(self.mpl_connect('button_press_event', self._on_mouse_press))
@@ -240,7 +250,16 @@ class MplCanvas(FigureCanvasQTAgg):
 
     def set_xrange(self, low, high):
         self.axes.set_xlim(low, high)
-        self.draw()
+        self.draw_idle()
+    
+    def adjust_yrange(self):
+        """
+        Sets y range to fit the data
+        """
+        max = np.max(self.positions)
+        min = np.min(self.positions)
+        padding = abs(max) - abs(min) * 0.1
+        self.axes.set_ylim(min - padding, max + padding)
 
     def draw_timebars(self, time):
         """
@@ -337,7 +356,7 @@ class MplCanvas(FigureCanvasQTAgg):
         correct current joint state
         """
         # check if something is being grabbed
-        if self.selected and not self.grabbed is None and self.selection_rect is None:
+        if self.selected and not self.grabbed is None and self.selection_rect is None and self.zoom_rect is None:
 
             # prepare position list
             time_index = self.hovered[1]
@@ -356,7 +375,6 @@ class MplCanvas(FigureCanvasQTAgg):
         
         # if nothing is grabbed, return nothing
         return None
-
 
     def get_highlight(self):
         """
@@ -388,7 +406,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.grabbed = [event.xdata, event.ydata]
         
         # check if the mouse was hovering over a point and clicked it now
-        if not self.hovered is None:
+        if not self.hovered is None and event.button == MouseButton.LEFT:
             
             # if self.hovered is a tuple, a point is selected
             if type(self.hovered) == tuple:
@@ -443,7 +461,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
         # if there is a selection and no rect, update times and positions values according to
         # plot values (if they were moved while the mouse was held down)
-        if self.selected and self.selection_rect is None:
+        if self.selected and self.selection_rect is None and self.zoom_rect is None:
 
             for (s, i) in self.selected:
 
@@ -455,7 +473,7 @@ class MplCanvas(FigureCanvasQTAgg):
                     self.positions[i][joint_idx] = s._offsets[i][1]
                 
                 # if this was a bezier curve control point, update bezier curve
-                else:
+                elif s in self.control_points:
                     new_position = (np.array(s._offsets[0]) \
                                     - np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])) / self.interval_diff
                     if s == self.control_points[0]:
@@ -475,7 +493,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.draw_timebars(None)
 
                 # remove selection rect
-                self.selection_rect = None
+                # self.selection_rect = None
                 self.selected = []
 
                 # update animation data in parent widget
@@ -529,6 +547,25 @@ class MplCanvas(FigureCanvasQTAgg):
             self.selection_rect.remove()
             self.selection_rect = None
             self.draw_idle()
+        
+        # zoom if a zoom rect was drawn
+        if not self.zoom_rect is None:
+
+            x = self.zoom_rect.get_x()
+            y = self.zoom_rect.get_y()
+            w = self.zoom_rect.get_width()
+            h = self.zoom_rect.get_height()
+
+            # remove rect
+            self.zoom_rect.remove()
+            self.zoom_rect = None
+
+            # set axe limits
+            self.axes.set_xlim(x, x+w)
+            self.axes.set_ylim(y, y+h)
+
+            # redraw
+            self.draw_idle()
 
     def _on_mouse_move(self, event):
         """
@@ -543,7 +580,7 @@ class MplCanvas(FigureCanvasQTAgg):
             # if mouse is out of frame or there is a selection,
             # and if there is still a rect, remove it
             if (event.xdata is None or event.ydata is None and not self.interval_rect is None) \
-                or not self.selection_rect is None or (self.selected and self.selected[0][0] in self.scatters):
+                or not self.selection_rect is None or not self.zoom_rect is None or (self.selected and self.selected[0][0] in self.scatters):
 
                 self._remove_bezier_selection()
             
@@ -596,7 +633,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # check if something is selected and the mouse button has been pressed
         # while there is no selection rect.
         # That means that the current selection is being moved.
-        if self.selected and not self.grabbed is None and self.selection_rect is None:
+        if self.selected and not self.grabbed is None and self.selection_rect is None and self.zoom_rect is None:
             # something is selected and the mouse was dragged
             # move selected points the specified amount
             movement = np.array([event.xdata, event.ydata]) - self.grabbed
@@ -692,7 +729,7 @@ class MplCanvas(FigureCanvasQTAgg):
 
 
         # check if a point was hovered
-        if self.selection_rect is None:
+        if self.selection_rect is None and self.zoom_rect is None:
 
             if not self.bezier_mode:
                 for s in self.scatters:
@@ -795,40 +832,55 @@ class MplCanvas(FigureCanvasQTAgg):
             self.draw_idle()
             self.set_cursor(Cursors.POINTER)
 
-        # if no point was touched and the mouse is grabbing, draw selection rect
+        # if no point was touched and the mouse is grabbing, draw selection rect or zoom rect
         if self.hovered is None and not self.grabbed is None and not self.bezier_mode:
-            if not self.selection_rect is None:
+            if event.button == MouseButton.LEFT:
+                rect = self.selection_rect
+                color = 'b'
+            else:
+                rect = self.zoom_rect
+                color = 'yellow'
+
+            if not rect is None:
                 # check if mouse went out of bounds and keep old values if so
                 if event.xdata is None:
-                    event.xdata = self.selection_rect.get_width() + self.grabbed[0]
+                    event.xdata = rect.get_width() + self.grabbed[0]
                 if event.ydata is None:
-                    event.ydata = self.selection_rect.get_height() + self.grabbed[1]
+                    event.ydata = rect.get_height() + self.grabbed[1]
                 
                 # remove old rect
-                self.selection_rect.remove()
+                rect.remove()
             
             # calculate size of rect
             difference = np.array([event.xdata, event.ydata]) - self.grabbed
 
-            self.selection_rect = Rectangle(self.grabbed, difference[0], difference[1],
-                                            linewidth=1, edgecolor='b', facecolor=(0.0, 0.2, 0.8, 0.2), zorder=1)
-            self.axes.add_patch(self.selection_rect)
+            rect = Rectangle(self.grabbed, difference[0], difference[1],
+                             linewidth=1, edgecolor=color, facecolor=(0.0, 0.2, 0.8, 0.2), zorder=1)
+            self.axes.add_patch(rect)
 
-            # update selected points
-            self.selected = []
-            x1 = min(self.grabbed[0], event.xdata)
-            x2 = max(self.grabbed[0], event.xdata)
-            y1 = min(self.grabbed[1], event.ydata)
-            y2 = max(self.grabbed[1], event.ydata)
+            if event.button == MouseButton.LEFT:
+                # set selection rect to rect
+                self.selection_rect = rect
 
-            for scat in self.scatters:
-                for i in range(len(scat._offsets)):
-                    point = scat._offsets[i]
+                # update selected points
+                self.selected = []
+                x1 = min(self.grabbed[0], event.xdata)
+                x2 = max(self.grabbed[0], event.xdata)
+                y1 = min(self.grabbed[1], event.ydata)
+                y2 = max(self.grabbed[1], event.ydata)
 
-                    if x1 < point[0] and point[0] < x2 and y1 < point[1] and point[1] < y2:
-                        self.selected.append((scat, i))
+                for scat in self.scatters:
+                    for i in range(len(scat._offsets)):
+                        point = scat._offsets[i]
 
-            self._update_selection()
+                        if x1 < point[0] and point[0] < x2 and y1 < point[1] and point[1] < y2:
+                            self.selected.append((scat, i))
+
+                self._update_selection()
+
+            else:
+                self.zoom_rect = rect
+                self.draw_idle()
 
     def _on_key_press(self, event):
         """

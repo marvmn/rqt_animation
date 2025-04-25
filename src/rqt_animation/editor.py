@@ -434,7 +434,7 @@ class AnimationEditor(Plugin):
         self.animation._reload_trajectory()
 
         # redraw animation in case bezier curves were changed
-        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
+        self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers, False)
         self._configure_time_slider()
         self._on_timeSlider_valueChanged()
 
@@ -663,10 +663,12 @@ class AnimationEditor(Plugin):
 
     def _on_trimButton_clicked(self):
         """
-        Trim animation length to the last keyframe timestamp
+        Trim animation length to the last keyframe timestamp and plot
+        y limits to fit everything
         """
         self._animation_length = self.animation.times[-1]
         self.plot.set_xrange(0, self._animation_length)
+        self.plot.adjust_yrange()
         self._configure_time_slider()
 
     def _on_bezierButton_clicked(self):
