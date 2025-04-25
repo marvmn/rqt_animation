@@ -1,6 +1,7 @@
 
 # ROS
 import os
+import time
 import sys
 import numpy as np
 import rospy
@@ -68,6 +69,9 @@ class AnimationEditor(Plugin):
 
         # what was the timestamp of the last clock tick?
         self._last_time = -1.0
+
+        # how fast should the animation be played
+        self.playback_speed = 1.0
 
         # how long is the animation in the editor?
         self._animation_length = 0.0
@@ -167,6 +171,10 @@ class AnimationEditor(Plugin):
         # trim and extend
         self._widget.trimButton.clicked.connect(self._on_trimButton_clicked)
         self._widget.extendButton.clicked.connect(self._on_extendButton_clicked)
+
+        # playback speed
+        self._widget.speedSlider.valueChanged.connect(self._on_speedSlider_valueChanged)
+        self._widget.speedSpinBox.valueChanged.connect(self._on_speedSpinBox_valueChanged)
 
         # advance bezier editing mode
         self._widget.curveButton.clicked.connect(self._on_bezierButton_clicked)
@@ -700,6 +708,26 @@ class AnimationEditor(Plugin):
         self._configure_time_slider()
         self._on_timeSlider_valueChanged()
 
+    def _on_speedSlider_valueChanged(self):
+        """
+        Adjust playback speed
+        """
+        value = (self._widget.speedSlider.value() + 50) / 50.0
+        self._widget.speedSpinBox.valueChanged.disconnect()
+        self._widget.speedSpinBox.setValue(value)
+        self._widget.speedSpinBox.valueChanged.connect(self._on_speedSpinBox_valueChanged)
+        self.playback_speed = self._widget.speedSpinBox.value()
+    
+    def _on_speedSpinBox_valueChanged(self):
+        """
+        Adjust speed slider
+        """
+        value = 50 * self._widget.speedSpinBox.value() - 50
+        self._widget.speedSlider.valueChanged.disconnect()
+        self._widget.speedSlider.setValue(int(value))
+        self._widget.speedSlider.valueChanged.connect(self._on_speedSlider_valueChanged)
+        self.playback_speed = self._widget.speedSpinBox.value()
+
     # ---------------------------------- ROS CALLBACK -----------------------------------
 
     def _on_clock_tick(self, clock: Clock):
@@ -709,28 +737,33 @@ class AnimationEditor(Plugin):
         '''
         if self._playing:
 
-            current_time = clock.clock.secs + (clock.clock.nsecs / 1000000000.0)
+            #current_time = clock.clock.secs + (clock.clock.nsecs / 1000000000.0)
+            current_time = time.time()
 
             # check if animation has already been initialized
             if self._last_time < 0:
                 self._last_time = current_time
 
-            time_diff = current_time - self._last_time
+            time_diff = (current_time - self._last_time) * self.playback_speed
+
+            # if time difference is too small, skip until it is big enough
+            if time_diff < 0.001:
+                return
 
             # check if end was reached
-            if self._widget.timeSlider.maximum() <= self._widget.timeSlider.value() + (time_diff * 5000):
+            if self._widget.timeSlider.maximum() <= self._widget.timeSlider.value() + (time_diff * 1000):
                 # set state to last frame
                 self._widget.timeSlider.setValue(self._widget.timeSlider.maximum())
                 self._on_stopButton_clicked()
             
             # otherwise publish current joint state
             else:
-                current_time += time_diff
+                # current_time += time_diff
                 self._last_time = current_time
 
                 # set value on time slider
                 # this will conveniently call the slider valueChanged signal and thus publish the joint state
-                self._widget.timeSlider.setValue(self._widget.timeSlider.value() + int(time_diff * 5000))
+                self._widget.timeSlider.setValue(self._widget.timeSlider.value() + int(time_diff * 1000))
         
         else:
             #
