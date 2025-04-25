@@ -207,17 +207,28 @@ class MplCanvas(FigureCanvasQTAgg):
 
     def unload_advanced_beziers(self):
         """
-        Unloads and deletes all advanced bezier blocks
+        Unloads and deletes all advanced bezier elements
         """
+
+        # remove all ezier blocks
         for i in range(len(self.bezier_blocks)):
             block = self.bezier_blocks.pop()
             block.remove()
+        
+        # clear layer list
         self.bezier_layers = []
+
+        # remove drawing space
         if self.drawing_space is not None:
             self.drawing_space.remove()
             self.drawing_space = None
+        
+        # remove checkmark
         if self.check_mark:
             self._remove_checkmark()
+        
+        # reset hovered in case the mouse was above an element before unloading
+        self.hovered = None
 
     def get_bounds(self):
         """
@@ -533,7 +544,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 self._remove_checkmark()
             
             # if a block is drawn, display it
-            if self.hovered == self.drawing_space and self.grabbed:
+            if self.hovered is not None and self.hovered == self.drawing_space and self.grabbed:
                 self._draw_new_bezier_block(event.xdata)
 
         # check if something is selected and the mouse button has been pressed
@@ -591,8 +602,9 @@ class MplCanvas(FigureCanvasQTAgg):
                 elif s in self.control_points:
 
                     # limit the mouse to the current interval
+                    interval_length = self.beziers[self.current_bezier_index].indices[1] - self.beziers[self.current_bezier_index].indices[0]
                     event.xdata = np.max([event.xdata, self.times[self.current_interval_index]])
-                    event.xdata = np.min([event.xdata, self.times[self.current_interval_index + 1]])
+                    event.xdata = np.min([event.xdata, self.times[self.current_interval_index + interval_length]])
                     movement = np.array([event.xdata, event.ydata]) - self.grabbed
 
                     if s == self.control_points[0]:
