@@ -486,7 +486,8 @@ class MplCanvas(FigureCanvasQTAgg):
 
                 self._remove_bezier_selection()
             
-            else:
+            # otherwise, if a point is not being dragged currently, change the bezier interval
+            elif not self.selected:
 
                 # find interval index
                 index = -1
@@ -584,6 +585,12 @@ class MplCanvas(FigureCanvasQTAgg):
                 
                 # if it was a bezier control point, adjust bezier parameters
                 else:
+
+                    # limit the mouse to the current interval
+                    event.xdata = np.max([event.xdata, self.times[self.current_interval_index]])
+                    event.xdata = np.min([event.xdata, self.times[self.current_interval_index + 1]])
+                    movement = np.array([event.xdata, event.ydata]) - self.grabbed
+
                     if s == self.control_points[0]:
                         original_position = np.array(self.beziers[self.current_bezier_index].control_point0) * self.interval_diff \
                                             + np.array([self.times[self.current_interval_index], -self.interval_diff[1]/2])
