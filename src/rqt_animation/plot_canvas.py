@@ -7,6 +7,12 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle, Polygon
 from matplotlib.backend_tools import Cursors
 from matplotlib.backend_bases import MouseButton
+
+# QT
+from python_qt_binding.QtGui import QCursor
+from python_qt_binding.QtCore import Qt
+
+# Python
 import numpy as np
 import copy
 
@@ -1147,4 +1153,16 @@ class MplCanvas(FigureCanvasQTAgg):
                                 c='r', linestyle='-.', linewidth=0.5)
 
         self.joint_limit_lines = [upper, lower]
-        
+
+    def set_cursor(self, cursor):
+        """
+        Set the mouse cursor to a predefined Cursor.
+        This method is already implemented in some Qt Backends but not in
+        all of them, so for compatibility it is reimplemented here.
+        """        
+        if cursor == Cursors.HAND:
+            self.setCursor(QCursor(Qt.PointingHandCursor))
+        elif cursor == Cursors.SELECT_REGION:
+            self.setCursor(QCursor(Qt.CrossCursor))
+        else:
+            self.setCursor(QCursor(Qt.ArrowCursor))

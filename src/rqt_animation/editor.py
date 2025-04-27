@@ -1,9 +1,12 @@
 
-# ROS
+# Python
 import os
 import time
 import sys
 import numpy as np
+from threading import Thread
+
+# ROS
 import rospy
 import rospkg
 from sensor_msgs.msg import JointState
@@ -61,8 +64,9 @@ class AnimationEditor(Plugin):
         self.topic_fake = '/display_robot_state'
         self.topic_command = '/joint_command'
 
-        # clock subscriptor
-        self.clock_sub = None
+        # thread that publishes the joint states continuously until clock_thread_stopped is True
+        self.clock_thread = None
+        self.clock_thread_stopped = False
 
         # is the animation playing?
         self._playing = False
@@ -184,8 +188,10 @@ class AnimationEditor(Plugin):
         return super().shutdown_plugin()
     
     def save_settings(self, plugin_settings, instance_settings):
-        # TODO: save config here
-        # usually per instance_settings.set_value(k, v)
+        """
+        Called automatically when closing the plugin. Save all settings that
+        should be loaded when starting the app the next time.
+        """
         instance_settings.set_value('file', self.animation_file)
         instance_settings.set_value('topic_fake', self.topic_fake)
         if self.topic_fake == '':
@@ -196,8 +202,9 @@ class AnimationEditor(Plugin):
         return super().save_settings(plugin_settings, instance_settings)
     
     def restore_settings(self, plugin_settings, instance_settings):
-        #TODO: restore config
-        # usually per v = instance_settings.value(k)
+        """
+        Load configuration from last time the plugin was closed.
+        """
         ret = super().restore_settings(plugin_settings, instance_settings)
         if not instance_settings.value('file') is None:
             self._open_file(instance_settings.value('file'))
@@ -228,9 +235,8 @@ class AnimationEditor(Plugin):
         """
         self.animation = None
 
-        if not self.clock_sub is None:
-            self.clock_sub.unregister()
-            self.clock_sub = None
+        if not self.clock_thread_stopped:
+            self.clock_thread_stopped = True
 
         if not self.publishers is None:
             self.publishers.shutdown()
@@ -310,7 +316,9 @@ class AnimationEditor(Plugin):
             self.saveAsButton.setEnabled(True)
 
             # subscribe to clock
-            self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
+            self.clock_thread = Thread(target=self._run_publish_loop)
+            self.clock_thread_stopped = False
+            self.clock_thread.start()
 
     def _open_file(self, file):
         """
@@ -379,8 +387,10 @@ class AnimationEditor(Plugin):
         self.saveButton.setEnabled(True)
         self.saveAsButton.setEnabled(True)
 
-        # subscribe to clock
-        self.clock_sub = rospy.Subscriber("/clock", Clock, self._on_clock_tick, queue_size=10)
+        # start joint publishing thread
+        self.clock_thread = Thread(target=self._run_publish_loop)
+        self.clock_thread_stopped = False
+        self.clock_thread.start()
 
     def _configure_time_slider(self):
         """
@@ -729,8 +739,17 @@ class AnimationEditor(Plugin):
         self.playback_speed = self._widget.speedSpinBox.value()
 
     # ---------------------------------- ROS CALLBACK -----------------------------------
+    
+    def _run_publish_loop(self):
+        """
+        Publish joint states as long as clock_thread_stopped is not True
+        """
+        print('start publish loop')
+        while not self.clock_thread_stopped:
+            self._on_clock_tick()
+            time.sleep(0.01)
 
-    def _on_clock_tick(self, clock: Clock):
+    def _on_clock_tick(self):
         '''
         If playing the animation on real states, update time slider
         and send joint states
