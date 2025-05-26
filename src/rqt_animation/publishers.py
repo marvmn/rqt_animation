@@ -103,7 +103,7 @@ class PublisherManager():
         '''
         
         # check if joint names are in the move group
-        if not set(animation.joint_names).issubset(self.robot.get_active_joint_names()):
+        if not set(animation.joint_names).issubset(self.move_group.get_active_joints()):
             return False
         
         # if all checks passed, this animation is compatible.

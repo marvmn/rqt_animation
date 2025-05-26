@@ -273,7 +273,7 @@ class AnimationEditor(Plugin):
 
             # unload old animation
             self.unload_animation()
-            self._new_animation = True
+            self._new_file = True
 
             # get info from dialog
             name = dialog._widget.nameEdit.text()
@@ -284,7 +284,7 @@ class AnimationEditor(Plugin):
             self.animation.name = name
             self.animation.move_group = move_group
             self.animation.frame_id = robot.get_planning_frame()
-            self.animation.joint_names = robot.get_active_joint_names()
+            self.animation.joint_names = robot.get_group(move_group).get_active_joints()
 
             # initialize editor
             self._animation_length = 5.0
@@ -471,6 +471,8 @@ class AnimationEditor(Plugin):
         """
         # get joint limits
         limits = []
+
+        print(f"APPLY LIMITS. Joint Names are {self.animation.joint_names}.")
 
         for name in self.animation.joint_names:
             try:
