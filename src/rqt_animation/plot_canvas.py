@@ -112,9 +112,9 @@ class MplCanvas(FigureCanvasQTAgg):
         trajectory = Trajectory(times, positions)
         original_indices = trajectory.fill_up(10)
         for bezier in beziers:
-            BezierCurveEffect((original_indices[bezier.indices[0]],
-                                original_indices[bezier.indices[1]],
-                                bezier.control_point0, bezier.control_point1)).apply(trajectory)
+            BezierCurveEffect(bezier.indices[0],
+                                bezier.indices[1],
+                                bezier.control_point0, bezier.control_point1).apply(trajectory)
 
         # delete old plot if there is one
         self.fig.clear(False)
@@ -675,8 +675,8 @@ class MplCanvas(FigureCanvasQTAgg):
                     trajectory.positions[i][joint_idx] = new_position[1]
                     original_indices = trajectory.fill_up(10)
                     for bezier in self.beziers:
-                        BezierCurveEffect(original_indices[bezier.indices[0]],
-                                        original_indices[bezier.indices[1]],
+                        BezierCurveEffect(bezier.indices[0],
+                                        bezier.indices[1],
                                         bezier.control_point0, bezier.control_point1).apply(trajectory)
 
                     for _ in range(len(self.lines)):
@@ -1136,7 +1136,7 @@ class MplCanvas(FigureCanvasQTAgg):
         """
         # remove old lines if there are any
         if self.joint_limit_lines:
-            for i in range(len(self.joint_limit_lines)):
+            for _ in range(len(self.joint_limit_lines)):
                 line = self.joint_limit_lines.pop()
                 line.remove()
         

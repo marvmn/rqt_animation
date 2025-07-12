@@ -264,7 +264,6 @@ class AnimationEditor(Plugin):
             robot = RobotCommander()
         
         # open new animation dialog
-        print(robot.get_planning_frame())
         dialog = NewDialog(robot)
         result = dialog.exec()
 
@@ -303,6 +302,7 @@ class AnimationEditor(Plugin):
             self.plot.load_animation(self.animation.positions, self.animation.times, self.animation.beziers)
             self.plot.set_xrange(0.0, self._animation_length)
             self.plot.draw_timebars(0.0)
+            self.apply_joint_limits()
 
             # configure time slider
             self._configure_time_slider()
@@ -471,8 +471,6 @@ class AnimationEditor(Plugin):
         """
         # get joint limits
         limits = []
-
-        print(f"APPLY LIMITS. Joint Names are {self.animation.joint_names}.")
 
         for name in self.animation.joint_names:
             try:
