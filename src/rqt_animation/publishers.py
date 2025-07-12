@@ -4,7 +4,7 @@ import numpy as np
 import sys
 
 # animation framework
-from expressive_motion_generation.animation_execution import Animation
+from expressive_motion_generation.animation import Animation
 
 # moveit
 import moveit_commander

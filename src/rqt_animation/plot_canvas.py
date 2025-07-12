@@ -17,8 +17,9 @@ import numpy as np
 import copy
 
 # custom stuff
-from expressive_motion_generation.animation_execution import BezierCurve
-from expressive_motion_generation.trajectory_planner import TrajectoryPlanner
+from expressive_motion_generation.animation import BezierCurve
+from expressive_motion_generation.trajectory import Trajectory
+from expressive_motion_generation.effects import BezierCurveEffect
 
 class MplCanvas(FigureCanvasQTAgg):
 
@@ -108,12 +109,12 @@ class MplCanvas(FigureCanvasQTAgg):
         old_ylim = self.axes.get_ylim()
 
         # create trajectory with applied bezier curves
-        trajectory = TrajectoryPlanner(times, positions)
+        trajectory = Trajectory(times, positions)
         original_indices = trajectory.fill_up(10)
         for bezier in beziers:
-            trajectory.apply_bezier_at(original_indices[bezier.indices[0]],
-                                       original_indices[bezier.indices[1]],
-                                       bezier.control_point0, bezier.control_point1)
+            BezierCurveEffect((original_indices[bezier.indices[0]],
+                                original_indices[bezier.indices[1]],
+                                bezier.control_point0, bezier.control_point1)).apply(trajectory)
 
         # delete old plot if there is one
         self.fig.clear(False)
@@ -669,14 +670,14 @@ class MplCanvas(FigureCanvasQTAgg):
                         si._offsets[i][0] = new_position[0]
 
                     # replot lines accordingly
-                    trajectory = TrajectoryPlanner(copy.deepcopy(self.times), copy.deepcopy(self.positions))
+                    trajectory = Trajectory(copy.deepcopy(self.times), copy.deepcopy(self.positions))
                     trajectory.times[i] = new_position[0]
                     trajectory.positions[i][joint_idx] = new_position[1]
                     original_indices = trajectory.fill_up(10)
                     for bezier in self.beziers:
-                        trajectory.apply_bezier_at(original_indices[bezier.indices[0]],
-                                                original_indices[bezier.indices[1]],
-                                                bezier.control_point0, bezier.control_point1)
+                        BezierCurveEffect(original_indices[bezier.indices[0]],
+                                        original_indices[bezier.indices[1]],
+                                        bezier.control_point0, bezier.control_point1).apply(trajectory)
 
                     for _ in range(len(self.lines)):
                         line = self.lines.pop()
@@ -1020,9 +1021,9 @@ class MplCanvas(FigureCanvasQTAgg):
         cii = self.current_interval_index
 
         # create trajectory planner on the specified interval and apply bezier curve
-        trajectory = TrajectoryPlanner(np.linspace(self.times[cii], self.times[cii + interval_length], 20),
+        trajectory = Trajectory(np.linspace(self.times[cii], self.times[cii + interval_length], 20),
                                        np.linspace(-self.interval_diff[1]/2, self.interval_diff[1]/2, 20))
-        trajectory.apply_bezier_at(0, 19, control_point0, control_point1)
+        BezierCurveEffect(0, 19, control_point0, control_point1).apply(trajectory)
 
         # plot
         line_bezier = self.axes.plot(trajectory.times, trajectory.positions, c=color)
