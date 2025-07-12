@@ -568,6 +568,12 @@ class MplCanvas(FigureCanvasQTAgg):
             self.zoom_rect = None
 
             # set axe limits
+            if w < 0:
+                x += w
+                w = -w
+            if h < 0:
+                y += h
+                h = -h
             self.axes.set_xlim(x, x+w)
             self.axes.set_ylim(y, y+h)
 
@@ -976,8 +982,10 @@ class MplCanvas(FigureCanvasQTAgg):
             if self.current_interval_index == len(self.times) - 1 else \
                 self.times[self.current_interval_index + interval_length] - self.times[self.current_interval_index]
 
-        self.interval_rect = Rectangle([self.times[self.current_interval_index], self.axes.get_ylim()[0] + 0.7], width, 
-                                    abs(self.axes.get_ylim()[0]) + self.axes.get_ylim()[1] - 1.4,
+        self.interval_rect = Rectangle([self.times[self.current_interval_index], 
+                                        self.axes.get_ylim()[0] + 0.2 * abs(self.axes.get_ylim()[0])], 
+                                       width, 
+                                    abs(self.axes.get_ylim()[0]) + abs(self.axes.get_ylim()[1]) * 0.6,
                                     linewidth=0, facecolor=(0.8, 0.8, 0.0, 0.2), zorder=0)
         self.axes.add_patch(self.interval_rect)
 

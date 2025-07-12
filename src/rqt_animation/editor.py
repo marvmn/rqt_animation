@@ -663,6 +663,9 @@ class AnimationEditor(Plugin):
 
                 # configure time slider
                 self._configure_time_slider()
+                
+                # rescale so that time slider has the correct length
+                self._on_trimButton_clicked()
 
     def _on_extendButton_clicked(self):
         """
